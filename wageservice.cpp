@@ -23,7 +23,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       uint32_t end_date;
       uint64_t primary_key() const { return id; }
     };
-    using balance_table = eosio::multi_index<"balance"_n, balance>;
+    using wage_table = eosio::multi_index<"wage"_n, wage>;
   public:
     using contract::contract;
     wageservice(name receiver, name code, datastream<const char *> ds) : contract(receiver, code, ds), wage_symbol("SYS", 4){}
@@ -39,6 +39,8 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
 
     [[eosio::action]]
     void placewage(name employer, name worker, amount wage, uint32_t days) {
+      require_auth(employer);
+      check(wage > 0, "Wage must be positive");
     }
 
     [[eosio::on_notify("eosio.token::transfer")]]
@@ -50,7 +52,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
         return;
       }
       check(quantity.amount > 0, "When pigs fly");
-      check(quantity.symbol == hodl_symbol, "These are not the droids you are looking for.");
+      check(quantity.symbol == wage_symbol, "These are not the droids you are looking for.");
     }
 
     [[eosio::action]]
@@ -64,12 +66,12 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
     }
 
     [[eosio::action]]
-    void acceptordecline(name worker, bool isaccepted) {
+    void acceptwage(name worker, bool isaccepted) {
 
     }
 
     [[eosio::action]]
-    void closecontract(name employer) {
+    void closewage(name employer) {
 
     }
 };
