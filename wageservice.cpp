@@ -124,24 +124,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       auto wage = wage_table.find(id);
       check(wage != wage_table.end(), "This wage doesn't exist");
       if(wage->is_charged == true) {
-        cashOutTransaction(wage->worker, wage->employer, wage, wage_table);
-        // eosio::asset fullwage = wage->wage_per_day * wage->worked_days;
-        // eosio::asset rest = wage->wage_frozen - fullwage;
-        //
-        // action{
-        //   permission_level{get_self(), "active"_n},
-        //   "eosio.token"_n,
-        //   "transfer"_n,
-        //   std::make_tuple(get_self(), wage->worker, fullwage, std::string("You have got your wage! Congratulations"))
-        // }.send();
-        //
-        // action{
-        //   permission_level{get_self(), "active"_n},
-        //   "eosio.token"_n,
-        //   "transfer"_n,
-        //   std::make_tuple(get_self(), employer, rest, std::string("You have got back your money"))
-        // }.send();
-        // wage_table.erase(wage);
+        cashOutTransaction(wage, wage_table);
       } else {
         wage_table.erase(wage);
       }
@@ -169,25 +152,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       check(wage->is_charged == true, "The wage contract isn't charged");
       check(wage->end_date < now(), "The contract isn't ended");
 
-      cashOutTransaction(worker, employer, wage, wage_table);
-      // eosio::asset fullwage = wage->wage_per_day * wage->worked_days;
-      // eosio::asset rest = wage->wage_frozen - fullwage;
-      //
-      // action{
-      //   permission_level{get_self(), "active"_n},
-      //   "eosio.token"_n,
-      //   "transfer"_n,
-      //   std::make_tuple(get_self(), worker, fullwage, std::string("You have got your wage! Congratulations"))
-      // }.send();
-      //
-      // action{
-      //   permission_level{get_self(), "active"_n},
-      //   "eosio.token"_n,
-      //   "transfer"_n,
-      //   std::make_tuple(get_self(), employer, rest, std::string("You have got the rest of wage money"))
-      // }.send();
-      //
-      // wage_table.erase(wage);
+      cashOutTransaction(wage, wage_table);
     }
 
     [[eosio::action]]
@@ -196,7 +161,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
     }
 
     // const in wage_table probably overloaded because it causes an error
-    void cashOutTransaction(const name& worker, const name& employer, const wage_table::const_iterator& wage, wage_table& table) {
+    void cashOutTransaction(const wage_table::const_iterator& wage, wage_table& table) {
       wage_table::const_iterator wage_copy = wage;
       auto eraseRollback = [&]() {
         table.emplace(get_self(), [&](auto &row) {
@@ -225,14 +190,14 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
         permission_level{get_self(), "active"_n},
         "eosio.token"_n,
         "transfer"_n,
-        std::make_tuple(get_self(), worker, fullwage, std::string("You have got your wage! Congratulations"))
+        std::make_tuple(get_self(), wage_copy->worker, fullwage, std::string("You have got your wage! Congratulations"))
       }.send();
 
       action{
         permission_level{get_self(), "active"_n},
         "eosio.token"_n,
         "transfer"_n,
-        std::make_tuple(get_self(), employer, rest, std::string("You have got the rest of wage money"))
+        std::make_tuple(get_self(), wage_copy->employer, rest, std::string("You have got the rest of wage money"))
       }.send();
       rollbackTransaction.commit();
     }
