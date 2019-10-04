@@ -11,20 +11,21 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
   private:
     const symbol wage_symbol;
 
-    struct [[eosio::table]] wage
+    struct [[eosio::table]] wage_v1
     {
       uint64_t id;
       name employer;
       name worker;
-      int64_t wage_amount;
+      eosio::asset wage_amount;
       eosio::asset wage_frozen;
+
       bool is_charged;
       uint32_t term_days;
       uint32_t start_date;
       uint32_t end_date;
       uint64_t primary_key() const { return id; }
     };
-    using wage_table = eosio::multi_index<"wage"_n, wage>;
+    using wage_table = eosio::multi_index<"wagev1"_n, wage_v1>;
 
     uint32_t now() {
       return current_time_point().sec_since_epoch();
@@ -47,7 +48,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
         row.id = primary_key;
         row.employer = employer;
         row.worker = worker;
-        row.wage_amount = wage;
+        row.wage_amount = eosio::asset(wage, wage_symbol);
         row.wage_frozen = eosio::asset(0, wage_symbol);
         row.is_charged = false;
         row.term_days = days;
@@ -70,7 +71,8 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
 
       wage_table wage_table(get_self(), employer.value);
       auto wage = wage_table.begin();
-      while(wage->wage_amount != quantity.amount && wage != wage_table.end()) {
+      check(wage != wage_table.end(), "Not found any wage of this employer");
+      while(wage->wage_amount.amount != quantity.amount && wage != wage_table.end()) {
         wage++;
       }
 
