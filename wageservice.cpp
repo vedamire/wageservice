@@ -9,26 +9,26 @@
 
 using namespace eosio;
 
-class CommitOrRollback
-{
-    bool committed;
-    std::function<void()> rollback;
-
-public:
-    CommitOrRollback(std::function<void()> &&fail_handler)
-        : committed(false),
-          rollback(std::move(fail_handler))
-    {
-    }
-
-    void commit() noexcept { committed = true; }
-
-    ~CommitOrRollback()
-    {
-        if (!committed)
-            rollback();
-    }
-};
+// class CommitOrRollback
+// {
+//     bool committed;
+//     std::function<void()> rollback;
+//
+// public:
+//     CommitOrRollback(std::function<void()> &&fail_handler)
+//         : committed(false),
+//           rollback(std::move(fail_handler))
+//     {
+//     }
+//
+//     void commit() noexcept { committed = true; }
+//
+//     ~CommitOrRollback()
+//     {
+//         if (!committed)
+//             rollback();
+//     }
+// };
 // typedef float amount;
 // https://eosio.stackexchange.com/questions/371/how-can-i-create-a-deferred-transaction
 // https://vc.ru/crypto/64813-3-poleznyh-resheniya-dlya-smart-kontraktov-na-eosio
@@ -162,26 +162,6 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
 
     // const in wage_table probably overloaded because it causes an error
     void cashOutTransaction(const wage_table::const_iterator& wage, wage_table& table) {
-      wage_table::const_iterator wage_copy = wage;
-      auto eraseRollback = [&]() {
-        table.emplace(get_self(), [&](auto &row) {
-          // int primary_key = wage_table.available_primary_key();
-          // int64_t whole_wage = wage_per_day * days;
-          row.id = wage_copy->id;
-          row.employer = wage_copy->employer;
-          row.worker = wage_copy->worker;
-          row.wage_amount = wage_copy->wage_amount;
-          row.wage_frozen = wage_copy->wage_frozen;
-          row.wage_per_day = wage_copy->wage_per_day;
-          row.is_charged = wage_copy->is_charged;
-          row.term_days = wage_copy->term_days;
-          row.worked_days = wage->worked_days;
-          row.start_date = wage_copy->start_date;
-          row.end_date = wage_copy->end_date;
-        });
-      };
-      CommitOrRollback rollbackTransaction(eraseRollback);
-
       eosio::asset fullwage = wage->wage_per_day * wage->worked_days;
       eosio::asset rest = wage->wage_frozen - fullwage;
       table.erase(wage);
@@ -190,15 +170,14 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
         permission_level{get_self(), "active"_n},
         "eosio.token"_n,
         "transfer"_n,
-        std::make_tuple(get_self(), wage_copy->worker, fullwage, std::string("You have got your wage! Congratulations"))
+        std::make_tuple(get_self(), wage->worker, fullwage, std::string("You have got your wage! Congratulations"))
       }.send();
 
       action{
         permission_level{get_self(), "active"_n},
         "eosio.token"_n,
         "transfer"_n,
-        std::make_tuple(get_self(), wage_copy->employer, rest, std::string("You have got the rest of wage money"))
+        std::make_tuple(get_self(), wage->employer, rest, std::string("You have got the rest of wage money"))
       }.send();
-      rollbackTransaction.commit();
     }
 };
