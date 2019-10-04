@@ -1,12 +1,7 @@
 {
     "____comment": "This file was generated with eosio-abigen. DO NOT EDIT ",
     "version": "eosio::abi/1.1",
-    "types": [
-        {
-            "new_type_name": "amount",
-            "type": "float32"
-        }
-    ],
+    "types": [],
     "structs": [
         {
             "name": "acceptwage",
@@ -23,12 +18,16 @@
             ]
         },
         {
-            "name": "claimback",
+            "name": "addworkday",
             "base": "",
             "fields": [
                 {
                     "name": "employer",
                     "type": "name"
+                },
+                {
+                    "name": "id",
+                    "type": "uint64"
                 }
             ]
         },
@@ -39,6 +38,14 @@
                 {
                     "name": "worker",
                     "type": "name"
+                },
+                {
+                    "name": "employer",
+                    "type": "name"
+                },
+                {
+                    "name": "id",
+                    "type": "uint64"
                 }
             ]
         },
@@ -49,6 +56,10 @@
                 {
                     "name": "employer",
                     "type": "name"
+                },
+                {
+                    "name": "id",
+                    "type": "uint64"
                 }
             ]
         },
@@ -65,8 +76,8 @@
                     "type": "name"
                 },
                 {
-                    "name": "wage",
-                    "type": "amount"
+                    "name": "wage_per_day",
+                    "type": "int64"
                 },
                 {
                     "name": "days",
@@ -75,7 +86,7 @@
             ]
         },
         {
-            "name": "wage",
+            "name": "wage_v1",
             "base": "",
             "fields": [
                 {
@@ -91,7 +102,15 @@
                     "type": "name"
                 },
                 {
+                    "name": "wage_amount",
+                    "type": "asset"
+                },
+                {
                     "name": "wage_frozen",
+                    "type": "asset"
+                },
+                {
+                    "name": "wage_per_day",
                     "type": "asset"
                 },
                 {
@@ -100,6 +119,10 @@
                 },
                 {
                     "name": "term_days",
+                    "type": "uint32"
+                },
+                {
+                    "name": "worked_days",
                     "type": "uint32"
                 },
                 {
@@ -120,8 +143,8 @@
             "ricardian_contract": ""
         },
         {
-            "name": "claimback",
-            "type": "claimback",
+            "name": "addworkday",
+            "type": "addworkday",
             "ricardian_contract": ""
         },
         {
@@ -142,8 +165,8 @@
     ],
     "tables": [
         {
-            "name": "wage",
-            "type": "wage",
+            "name": "wagev1",
+            "type": "wage_v1",
             "index_type": "i64",
             "key_names": [],
             "key_types": []
