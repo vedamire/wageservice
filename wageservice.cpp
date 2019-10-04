@@ -88,8 +88,22 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
     }
 
     [[eosio::action]]
-    void claimback(const name& employer) {
-
+    void claimback(const name& employer, const uint64_t& id) {
+      require_auth(employer);
+      wage_table wage_table(get_self(), employer.value);
+      auto wage = wage_table.find(id);
+      check(wage != wage_table.end(), "This wage doesn't exist");
+      if(wage->is_charged == true) {
+        action{
+          permission_level{get_self(), "active"_n},
+          "eosio.token"_n,
+          "transfer"_n,
+          std::make_tuple(get_self(), employer, wage->wage_frozen, std::string("You get back your money"))
+        }.send();
+        wage_table.erase(wage);
+      } else {
+        wage_table.erase(wage);
+      }
     }
 
     [[eosio::action]]
