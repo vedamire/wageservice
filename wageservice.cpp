@@ -38,13 +38,14 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
     // }
 
     [[eosio::action]]
-    void placewage(name employer, name worker, amount wage, uint32_t days) {
+    void placewage(const name& employer, const name& worker, const amount& wage, const uint32_t& days) {
       require_auth(employer);
+      // check(worker.)s
       check(wage > 0, "Wage must be positive");
     }
 
     [[eosio::on_notify("eosio.token::transfer")]]
-    void chargewage(name hodler, name to, eosio::asset quantity, std::string memo)
+    void chargewage(const name& hodler, const name& to, const eosio::asset& quantity, const std::string& memo)
     {
       if (to != get_self() || hodler == get_self())
       {
@@ -56,22 +57,22 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
     }
 
     [[eosio::action]]
-    void claimback(name employer) {
+    void claimback(const name& employer) {
 
     }
 
     [[eosio::action]]
-    void claimwage(name worker) {
+    void claimwage(const name& worker) {
 
     }
 
     [[eosio::action]]
-    void acceptwage(name worker, bool isaccepted) {
+    void acceptwage(const name& worker, const bool& isaccepted) {
 
     }
 
     [[eosio::action]]
-    void closewage(name employer) {
+    void closewage(const name& employer) {
 
     }
 };
