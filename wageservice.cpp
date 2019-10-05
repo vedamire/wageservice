@@ -3,8 +3,7 @@
 #include <eosio/asset.hpp>
 #include <eosio/system.hpp>
 
-#include <utility>
-#include <functional>
+
 // #include <eosio/transaction.hpp>
 
 using namespace eosio;
@@ -27,6 +26,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       bool is_charged;
       uint32_t term_days;
       uint32_t worked_days;
+      bool is_accepted;
       uint32_t start_date;
       uint32_t end_date;
       uint64_t primary_key() const { return id; }
@@ -63,6 +63,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
         row.is_charged = false;
         row.term_days = days;
         row.worked_days = 0;
+        row.is_accepted = false;
         row.start_date = NULL;
         row.end_date = NULL;
       });
@@ -84,7 +85,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       auto wage = wage_table.begin();
 
       check(wage != wage_table.end(), "Not found any wage of this employer");
-      check(wage->is_charged != true, "The wage is already charged");
+      check(wage->is_charged == false, "The wage is already charged");
 
       while(wage->wage_amount.amount != quantity.amount && wage != wage_table.end()) {
         wage++;
@@ -92,12 +93,12 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
 
       check(wage != wage_table.end(), "Not found any wage with this amount. Please check your placed wage.");
       wage_table.modify(wage, get_self(), [&](auto& raw) {
-        uint32_t start = now();
-        uint32_t end = start + (86400 * raw.term_days);
+        // uint32_t start = now();
+        // uint32_t end = start + (86400 * raw.term_days);
         raw.is_charged = true;
         raw.wage_frozen = quantity;
-        raw.start_date = start;
-        raw.end_date = end;
+        // raw.start_date = start;
+        // raw.end_date = end;
       });
 
       notify_user(employer, std::string(" Your wage is successfully chaged. Waiting for worker to accept"));
@@ -112,6 +113,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       auto wage = wage_table.find(id);
       check(wage != wage_table.end(), "This wage doesn't exist");
       if(wage->is_charged == true) {
+        notify_user(wage->worker, std::string("Your wage contract is closed by employer. All your work days will be paid"));
         cash_out_transaction(wage, wage_table);
       } else {
         wage_table.erase(wage);
@@ -125,6 +127,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       wage_table wage_table(get_self(), employer.value);
       auto wage = wage_table.find(id);
       check(wage != wage_table.end(), "No wage contract found with this id");
+      check(wage->is_accepted == true, "This wage contract isn't accepted");
       wage_table.modify(wage, get_self(), [&](auto& row) {
         row.worked_days = row.worked_days + 1;
       });
@@ -137,15 +140,41 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       wage_table wage_table(get_self(), employer.value);
       auto wage = wage_table.find(id);
       check(wage != wage_table.end(), "There's no wage contract with such an id");
-      check(wage->is_charged == true, "The wage contract isn't charged");
+      // check(wage->is_charged == true, "The wage contract isn't charged");
+      check(wage->is_accepted == true, "The wage contract isn't accepted");
       check(wage->end_date < now(), "The contract isn't ended");
 
       cash_out_transaction(wage, wage_table);
     }
 
     [[eosio::action]]
-    void acceptwage(const name& worker, const bool& isaccepted) {
+    void acceptwage(const name& worker, const name& employer, const uint64_t& id, const bool& isaccepted) {
+      require_auth(worker);
+      check(is_account(employer), "Employer's account doesn't exist");
+      wage_table wage_table(get_self(), employer.value);
+      auto wage = wage_table.find(id);
+      check(wage != wage_table.end(), "There's no wage contract with such an id");
+      check(wage->is_charged == true, "The wage contract isn't charged. Contract must be charge before accepted");
+      check(wage->is_accepted == false, "The wage contract is already accepted");
 
+      if(isaccepted) {
+        wage_table.modify(wage, get_self(), [&](auto& row) {
+          uint32_t start = now();
+          uint32_t end = start + (86400 * row.term_days);
+          row.is_accepted = true;
+          row.start_date = start;
+          row.end_date = end;
+        });
+        print("Job is successfully accepted! Job starts at this moment");
+        notify_user(employer, std::string(" the wage contract is accepted by worker. Job is started. Worker: ")
+        + name{worker}.to_string()
+        + ", id: " + std::to_string(id));
+      } else {
+        print("You have declined the job. Come back if you've changed your mind");
+        notify_user(employer, std::string(" the wage contract is declined by worker. Close wage or try to change his mind.")
+         + name{worker}.to_string()
+         + ", id: " + std::to_string(id));
+      }
     }
 
     [[eosio::action]]
