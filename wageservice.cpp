@@ -4,7 +4,7 @@
 #include <eosio/system.hpp>
 
 
-// #include <eosio/transaction.hpp>
+#include <eosio/transaction.hpp>
 
 using namespace eosio;
 
@@ -51,8 +51,8 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
 
       wage_table wage_table(get_self(), employer.value);
 
+      int primary_key = wage_table.available_primary_key();
       wage_table.emplace(get_self(), [&](auto &row) {
-        int primary_key = wage_table.available_primary_key();
         int64_t whole_wage = wage_per_day * days;
         row.id = primary_key;
         row.employer = employer;
@@ -67,6 +67,9 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
         row.start_date = NULL;
         row.end_date = NULL;
       });
+
+// 86400
+      send_expiration_cleaner(employer, primary_key, 86400);
     }
 
     [[eosio::on_notify("eosio.token::transfer")]]
@@ -141,6 +144,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       auto wage = wage_table.find(id);
       check(wage != wage_table.end(), "There's no wage contract with such an id");
       // check(wage->is_charged == true, "The wage contract isn't charged");
+      check(wage->worker == worker, "You are not the worker of this wage contract");
       check(wage->is_accepted == true, "The wage contract isn't accepted");
       check(wage->end_date < now(), "The contract isn't ended");
 
@@ -150,7 +154,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
     [[eosio::action]]
     void acceptwage(const name& worker, const name& employer, const uint64_t& id, const bool& isaccepted) {
       require_auth(worker);
-      check(is_account(employer), "Employer's account doesn't exist");
+      check(is_account(employer), "Employer's account doesn't exist"); // If employer deletes his account it may cause a problem
       wage_table wage_table(get_self(), employer.value);
       auto wage = wage_table.find(id);
       check(wage != wage_table.end(), "There's no wage contract with such an id");
@@ -178,14 +182,50 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
     }
 
     [[eosio::action]]
-    void notify(name user, std::string msg) {
+    void notify(const name& user, const std::string& msg) {
       require_auth(get_self());
       require_recipient(user);
     }
 
-  private:
+    [[eosio::action]]
+    void expireclean(const name& employer, const uint64_t& id) {
+      require_auth(get_self());
+      // require_recipient(user);
+      check(is_account(employer), "Employer's account doesn't exist"); // If employer deletes his account it may cause a problem
+      wage_table wage_table(get_self(), employer.value);
+      auto wage = wage_table.find(id);
+      check(wage != wage_table.end(), "There's no wage contract with such an id");
+      check(wage->is_charged == false, "The wage contract is charged. No need to erase it");
+      wage_table.erase(wage);
+    }
 
-    void notify_user(name user, std::string message) {
+  private:
+    void send_expiration_cleaner(const name& employer, const uint64_t& id, const uint32_t& delay) {
+      eosio::transaction deferred;
+
+      deferred.actions.emplace_back (
+        permission_level{get_self(),"active"_n},
+        get_self(), "expireclean"_n,
+        std::make_tuple(employer, id)
+      );
+      deferred.delay_sec = delay;
+
+      deferred.send(get_self().value, get_self());
+    }
+
+    void send_auto_cashout(const name& employer, const uint64_t& id) {
+      // eosio::transaction deferred;
+      //
+      // deferred.actions.emplace_back (
+      //   permission_level{get_self(),"active"_n},
+      //   get_self(), "expireclean"_n,
+      //   std::make_tuple(employer, id)
+      // );
+      //
+      // deferred.send(user.value, get_self());
+    }
+
+    void notify_user(const name& user, const std::string& message) {
       action(
         permission_level{get_self(), "active"_n},
         get_self(),
