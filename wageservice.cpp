@@ -11,6 +11,10 @@ using namespace eosio;
 // typedef float amount;
 // https://eosio.stackexchange.com/questions/371/how-can-i-create-a-deferred-transaction
 // https://vc.ru/crypto/64813-3-poleznyh-resheniya-dlya-smart-kontraktov-na-eosio
+
+
+// changed deferred logic because if different employers will call it with the same id one will not be called
+
 class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
   private:
     const symbol wage_symbol;
