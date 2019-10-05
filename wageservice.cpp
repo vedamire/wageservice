@@ -9,26 +9,6 @@
 
 using namespace eosio;
 
-// class CommitOrRollback
-// {
-//     bool committed;
-//     std::function<void()> rollback;
-//
-// public:
-//     CommitOrRollback(std::function<void()> &&fail_handler)
-//         : committed(false),
-//           rollback(std::move(fail_handler))
-//     {
-//     }
-//
-//     void commit() noexcept { committed = true; }
-//
-//     ~CommitOrRollback()
-//     {
-//         if (!committed)
-//             rollback();
-//     }
-// };
 // typedef float amount;
 // https://eosio.stackexchange.com/questions/371/how-can-i-create-a-deferred-transaction
 // https://vc.ru/crypto/64813-3-poleznyh-resheniya-dlya-smart-kontraktov-na-eosio
@@ -96,12 +76,16 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
         print("These are not the droids you are looking for.");
         return;
       }
+
       check(quantity.amount > 0, "When pigs fly");
       check(quantity.symbol == wage_symbol, "These are not the droids you are looking for.");
 
       wage_table wage_table(get_self(), employer.value);
       auto wage = wage_table.begin();
+
       check(wage != wage_table.end(), "Not found any wage of this employer");
+      check(wage->is_charged != true, "The wage is already charged");
+
       while(wage->wage_amount.amount != quantity.amount && wage != wage_table.end()) {
         wage++;
       }
@@ -115,6 +99,10 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
         raw.start_date = start;
         raw.end_date = end;
       });
+
+      notify_user(employer, std::string(" Your wage is successfully chaged. Waiting for worker to accept"));
+      std::string notification = std::string(" Employer placed job for you! Employer: ") + name{employer}.to_string() + ", jobId: " + std::to_string(wage->id);
+      notify_user(wage->worker, notification);
     }
 
     [[eosio::action]]
@@ -124,7 +112,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       auto wage = wage_table.find(id);
       check(wage != wage_table.end(), "This wage doesn't exist");
       if(wage->is_charged == true) {
-        cashOutTransaction(wage, wage_table);
+        cash_out_transaction(wage, wage_table);
       } else {
         wage_table.erase(wage);
       }
@@ -152,7 +140,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       check(wage->is_charged == true, "The wage contract isn't charged");
       check(wage->end_date < now(), "The contract isn't ended");
 
-      cashOutTransaction(wage, wage_table);
+      cash_out_transaction(wage, wage_table);
     }
 
     [[eosio::action]]
@@ -160,24 +148,43 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
 
     }
 
+    [[eosio::action]]
+    void notify(name user, std::string msg) {
+      require_auth(get_self());
+      require_recipient(user);
+    }
+
+  private:
+
+    void notify_user(name user, std::string message) {
+      action(
+        permission_level{get_self(), "active"_n},
+        get_self(),
+        "notify"_n,
+        std::make_tuple(user, name{user}.to_string() + message)
+      ).send();
+    }
     // const in wage_table probably overloaded because it causes an error
-    void cashOutTransaction(const wage_table::const_iterator& wage, wage_table& table) {
+    void cash_out_transaction(const wage_table::const_iterator& wage, wage_table& table) {
       eosio::asset fullwage = wage->wage_per_day * wage->worked_days;
       eosio::asset rest = wage->wage_frozen - fullwage;
       table.erase(wage);
 
-      action{
-        permission_level{get_self(), "active"_n},
-        "eosio.token"_n,
-        "transfer"_n,
-        std::make_tuple(get_self(), wage->worker, fullwage, std::string("You have got your wage! Congratulations"))
-      }.send();
-
-      action{
-        permission_level{get_self(), "active"_n},
-        "eosio.token"_n,
-        "transfer"_n,
-        std::make_tuple(get_self(), wage->employer, rest, std::string("You have got the rest of wage money"))
-      }.send();
+      if(fullwage.amount > 0) {
+        action{
+          permission_level{get_self(), "active"_n},
+          "eosio.token"_n,
+          "transfer"_n,
+          std::make_tuple(get_self(), wage->worker, fullwage, std::string("You have got your wage! Congratulations"))
+        }.send();
+      }
+      if(rest.amount > 0) {
+        action{
+          permission_level{get_self(), "active"_n},
+          "eosio.token"_n,
+          "transfer"_n,
+          std::make_tuple(get_self(), wage->employer, rest, std::string("You have got the rest of wage money"))
+        }.send();
+      }
     }
 };
