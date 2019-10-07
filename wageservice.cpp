@@ -2,22 +2,38 @@
 #include <eosio/print.hpp>
 #include <eosio/asset.hpp>
 #include <eosio/system.hpp>
-
-
 #include <eosio/transaction.hpp>
+
+#include <vector>
+#include <functional>
+#include <map>
 
 using namespace eosio;
 
-// typedef float amount;
-// https://eosio.stackexchange.com/questions/371/how-can-i-create-a-deferred-transaction
-// https://vc.ru/crypto/64813-3-poleznyh-resheniya-dlya-smart-kontraktov-na-eosio
+typedef std::function<void(const uint64_t*, const name*)> notify_func;
 
+class observer
+{
+  public:
 
-// changed deferred logic because if different employers will call it with the same id one will not be called
-// Change table system in the way that all jobs must be in one scope. It will prevent id collisions between deferred transactions of different employers;
+    void add_func(const std::string& channel, const notify_func& func)
+    {
+      observer_channels[channel].push_back(func);
+    }
+    void notify_channel(const std::string& channel, const uint64_t* id, const name* user)
+    {
+      auto target = observer_channels[channel];
+      for (auto& func : target) {
+        func(id, user);
+      }
+    }
+  private:
+    std::map<std::string, std::vector<notify_func>> observer_channels;
+};
 
 class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
   private:
+    observer observer;
     const symbol wage_symbol;
     // const name _self;
     struct [[eosio::table]] wage_v1
@@ -49,7 +65,48 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
 
   public:
     using contract::contract;
-    wageservice(name receiver, name code, datastream<const char *> ds) : contract(receiver, code, ds), wage_symbol("SYS", 4), table_wage(_self, _self.value){}
+    wageservice(name receiver, name code, datastream<const char *> ds) : contract(receiver, code, ds), wage_symbol("SYS", 4), table_wage(_self, _self.value) {
+      using namespace std;
+      // Preset everything
+      string placed_post = "placewage";
+      observer.add_func(placed_post, [&](const uint64_t* id, const name* employer) { this->notify_user(*employer, std::string(" Your wage is successfully placed! Charge it in 1 day. id: ") + to_string(*id)); });
+      string charge_post = "chargewage";
+      observer.add_func(charge_post, [&](const uint64_t* id, const name* employer) { this->notify_user(*employer, std::string(" Your wage is successfully charged. Waiting for worker to accept")); });
+      observer.add_func(charge_post, [&](const uint64_t* id, const name* employer) {
+        std::string notification = std::string(" Employer placed job for you! Employer: ") + name{*employer}.to_string() + ", jobId: " + std::to_string(*id);
+        this->notify_user(
+          // wage->worker
+          *employer
+          , notification);
+      });
+      string closed_post = "closewage";
+      observer.add_func(closed_post, [&](const uint64_t* id, const name* employer) { this->notify_user(
+        // wage->worker
+        *employer
+        , std::string("Your wage contract is closed by employer. All your work days will be paid")); });
+
+      string workday_post = "addworkday";
+      string claimed_post = "claimwage";
+      string accepted_post = "acceptwage_accepted";
+      observer.add_func(accepted_post, [&](const uint64_t* id, const name* employer) {
+        print("Job is successfully accepted! Job starts at this moment");
+        notify_user(*employer, std::string(" the wage contract is accepted by worker. Job is started. Worker: ")
+        + employer
+        // name{worker}
+        ->to_string()
+        + ", id: " + std::to_string(*id));
+      });
+
+      string declined_post = "acceptwage_declined";
+      observer.add_func(declined_post, [&](const uint64_t* id, const name* employer) {
+        print("You have declined the job. Come back if you've changed your mind");
+        notify_user(*employer, std::string(" the wage contract is declined by worker. Close wage or try to change his mind.")
+         + employer
+          // name{worker}
+         ->to_string()
+         + ", id: " + std::to_string(*id));
+      });
+    }
 
     [[eosio::action]]
     void placewage(const name& employer, const name& worker, const int64_t& wage_per_day, const uint32_t& days) {
@@ -59,8 +116,8 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       check(days >= 1, "Wage must be minimum for 1 day");
 
       print(std::to_string(employer.value) + " Employer's value");
+      uint64_t primary_key = table_wage.available_primary_key();
       table_wage.emplace(get_self(), [&](auto &row) {
-        int primary_key = table_wage.available_primary_key();
         int64_t whole_wage = wage_per_day * days;
         row.id = primary_key;
         row.employer = employer;
@@ -76,6 +133,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
         row.end_date = NULL;
         send_expiration_cleaner(employer, primary_key, 86400);
       });
+      observer.notify_channel(__func__, &primary_key, &employer);
     }
 
     [[eosio::on_notify("eosio.token::transfer")]]
@@ -101,16 +159,14 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
         }
         wage++;
       }
-
       check(wage != wage_index.end() && wage->employer.value == employer.value, "Not found any wage with this amount, employer and not charged. Please check your placed wage.");
       wage_index.modify(wage, get_self(), [&](auto& raw) {
         raw.is_charged = true;
         raw.wage_frozen = quantity;
       });
       cancel_deferred(wage->id);
-      notify_user(employer, std::string(" Your wage is successfully chaged. Waiting for worker to accept"));
-      std::string notification = std::string(" Employer placed job for you! Employer: ") + name{wage->employer}.to_string() + ", jobId: " + std::to_string(wage->id);
-      notify_user(wage->worker, notification);
+      observer.notify_channel(__func__, &wage->id, &wage->employer);
+
     }
 
     [[eosio::action]]
@@ -121,9 +177,9 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       check(wage != table_wage.end(), "This wage doesn't exist");
       check(wage->employer == employer, "This is not your wage");
       if(wage->is_charged == true) {
-        notify_user(wage->worker, std::string("Your wage contract is closed by employer. All your work days will be paid"));
         cash_out_transaction(wage, table_wage);
         cancel_deferred(wage->id);
+        observer.notify_channel(__func__, &wage->id, &wage->employer);
       } else {
         table_wage.erase(wage);
         cancel_deferred(wage->id);
@@ -133,9 +189,8 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
     [[eosio::action]]
     void addworkday(const name& employer, const uint64_t& id) {
       require_auth(employer);
-
-      // table_wage table_wage(get_self(), employer.value);
       auto wage = table_wage.find(id);
+
       check(wage != table_wage.end(), "No wage contract found with this id");
       check(wage->employer == employer, "This is not your wage");
       check(wage->is_accepted == true, "This wage contract isn't accepted");
@@ -149,10 +204,9 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
     void claimwage(const name& worker, const name& employer, const uint64_t& id) {
       require_auth(worker);
       check(is_account(employer), "Employer's account doesn't exist");
-      // table_wage table_wage(get_self(), employer.value);
       auto wage = table_wage.find(id);
+
       check(wage != table_wage.end(), "There's no wage contract with such an id");
-      // check(wage->is_charged == true, "The wage contract isn't charged");
       check(wage->worker == worker, "You are not the worker of this wage contract");
       check(wage->is_accepted == true, "The wage contract isn't accepted");
       check(wage->end_date < now(), "The contract isn't ended");
@@ -163,10 +217,8 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
     [[eosio::action]]
     void acceptwage(const name& worker, const uint64_t& id, const bool& isaccepted) {
       require_auth(worker);
-      // check(is_account(employer), "Employer's account doesn't exist"); // If employer deletes his account it may cause a problem
-      // table_wage table_wage(get_self(), employer.value);
-      auto wage = table_wage.find(id);
 
+      auto wage = table_wage.find(id);
       check(wage != table_wage.end(), "There's no wage contract with such an id");
       check(wage->worker == worker, "You are not worker");
       check(wage->is_charged == true, "The wage contract isn't charged. Contract must be charge before accepted");
@@ -181,16 +233,9 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
           row.end_date = end;
           send_auto_cashout(id, end - start);
         });
-        print("Job is successfully accepted! Job starts at this moment");
-        notify_user(wage->employer, std::string(" the wage contract is accepted by worker. Job is started. Worker: ")
-        + name{worker}.to_string()
-        + ", id: " + std::to_string(id));
-
+        observer.notify_channel(std::string(__func__) + "_accepted", &wage->id, &wage->employer);
       } else {
-        print("You have declined the job. Come back if you've changed your mind");
-        notify_user(wage->employer, std::string(" the wage contract is declined by worker. Close wage or try to change his mind.")
-         + name{worker}.to_string()
-         + ", id: " + std::to_string(id));
+        observer.notify_channel(std::string(__func__) + "_declined", &wage->id, &wage->employer);
       }
     }
 
