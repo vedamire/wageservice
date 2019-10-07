@@ -159,12 +159,14 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
     }
 
     [[eosio::action]]
-    void acceptwage(const name& worker, const name& employer, const uint64_t& id, const bool& isaccepted) {
+    void acceptwage(const name& worker, const uint64_t& id, const bool& isaccepted) {
       require_auth(worker);
-      check(is_account(employer), "Employer's account doesn't exist"); // If employer deletes his account it may cause a problem
+      // check(is_account(employer), "Employer's account doesn't exist"); // If employer deletes his account it may cause a problem
       // table_wage table_wage(get_self(), employer.value);
       auto wage = table_wage.find(id);
+
       check(wage != table_wage.end(), "There's no wage contract with such an id");
+      check(wage->worker == worker, "You are not worker");
       check(wage->is_charged == true, "The wage contract isn't charged. Contract must be charge before accepted");
       check(wage->is_accepted == false, "The wage contract is already accepted");
 
@@ -175,16 +177,16 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
           row.is_accepted = true;
           row.start_date = start;
           row.end_date = end;
-          send_auto_cashout(employer, id, end - start);
+          send_auto_cashout(id, end - start);
         });
         print("Job is successfully accepted! Job starts at this moment");
-        notify_user(employer, std::string(" the wage contract is accepted by worker. Job is started. Worker: ")
+        notify_user(wage->employer, std::string(" the wage contract is accepted by worker. Job is started. Worker: ")
         + name{worker}.to_string()
         + ", id: " + std::to_string(id));
 
       } else {
         print("You have declined the job. Come back if you've changed your mind");
-        notify_user(employer, std::string(" the wage contract is declined by worker. Close wage or try to change his mind.")
+        notify_user(wage->employer, std::string(" the wage contract is declined by worker. Close wage or try to change his mind.")
          + name{worker}.to_string()
          + ", id: " + std::to_string(id));
       }
@@ -200,8 +202,6 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
     void expireclean(const name& employer, const uint64_t& id) {
       require_auth(get_self());
       // require_recipient(user);
-      // check(is_account(employer), "Employer's account doesn't exist"); // If employer deletes his account it may cause a problem
-      // table_wage table_wage(get_self(), employer.value);
       auto wage = table_wage.find(id);
       check(wage != table_wage.end(), "There's no wage contract with such an id end employer");
       check(wage->is_charged == false, "The wage contract is charged. No need to erase it");
@@ -209,15 +209,12 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
     }
 
     [[eosio::action]]
-    void autocashout(const name& employer, const uint64_t& id) {
+    void autocashout(const uint64_t& id) {
       require_auth(get_self());
-
-      // check(is_account(employer), "Employer's account doesn't exist");
-      // table_wage table_wage(get_self(), employer.value);
       auto wage = table_wage.find(id);
-      check(wage != table_wage.end(), "There's no wage contract with such an id and employer");
+
+      check(wage != table_wage.end(), "There's no wage contract with such an id");
       check(wage->is_accepted == true, "The wage contract isn't accepted");
-      // check(wage->end_date < now(), "The contract isn't ended");
 
       cash_out_transaction(wage, table_wage);
     }
@@ -236,16 +233,16 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       deferred.send(id, employer);
     }
 
-    void send_auto_cashout(const name& employer, const uint64_t& id, const uint32_t& delay) {
+    void send_auto_cashout(const uint64_t& id, const uint32_t& delay) {
       eosio::transaction deferred;
 
       deferred.actions.emplace_back (
         permission_level{get_self(), "active"_n},
         get_self(), "autocashout"_n,
-        std::make_tuple(employer, id)
+        std::make_tuple(id)
       );
       deferred.delay_sec = delay;
-      deferred.send(id, employer);
+      deferred.send(id, get_self());
     }
 
     void notify_user(const name& user, const std::string& message) {
