@@ -119,7 +119,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       // table_wage table_wage(get_self(), employer.value);
       auto wage = table_wage.find(id);
       check(wage != table_wage.end(), "This wage doesn't exist");
-      check(wage->employer.value == employer.value, "This is not your wage");
+      check(wage->employer == employer, "This is not your wage");
       if(wage->is_charged == true) {
         notify_user(wage->worker, std::string("Your wage contract is closed by employer. All your work days will be paid"));
         cash_out_transaction(wage, table_wage);
@@ -137,7 +137,9 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       // table_wage table_wage(get_self(), employer.value);
       auto wage = table_wage.find(id);
       check(wage != table_wage.end(), "No wage contract found with this id");
+      check(wage->employer == employer, "This is not your wage");
       check(wage->is_accepted == true, "This wage contract isn't accepted");
+
       table_wage.modify(wage, get_self(), [&](auto& row) {
         row.worked_days = row.worked_days + 1;
       });
