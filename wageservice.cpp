@@ -4,17 +4,22 @@
 #include <eosio/system.hpp>
 
 
-// #include <eosio/transaction.hpp>
+#include <eosio/transaction.hpp>
 
 using namespace eosio;
 
 // typedef float amount;
 // https://eosio.stackexchange.com/questions/371/how-can-i-create-a-deferred-transaction
 // https://vc.ru/crypto/64813-3-poleznyh-resheniya-dlya-smart-kontraktov-na-eosio
+
+
+// changed deferred logic because if different employers will call it with the same id one will not be called
+// Change table system in the way that all jobs must be in one scope. It will prevent id collisions between deferred transactions of different employers;
+
 class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
   private:
     const symbol wage_symbol;
-
+    // const name _self;
     struct [[eosio::table]] wage_v1
     {
       uint64_t id;
@@ -30,8 +35,12 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       uint32_t start_date;
       uint32_t end_date;
       uint64_t primary_key() const { return id; }
+      uint64_t get_secondary_1() const { return employer.value;}
+
     };
-    using wage_table = eosio::multi_index<"wagev1"_n, wage_v1>;
+    typedef eosio::multi_index<"wagev1"_n, wage_v1, indexed_by<"byemployer"_n, const_mem_fun<wage_v1, uint64_t, &wage_v1::get_secondary_1>>> wage_table;
+
+    wage_table table_wage;
 
     uint32_t now() {
       return current_time_point().sec_since_epoch();
@@ -40,7 +49,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
 
   public:
     using contract::contract;
-    wageservice(name receiver, name code, datastream<const char *> ds) : contract(receiver, code, ds), wage_symbol("SYS", 4){}
+    wageservice(name receiver, name code, datastream<const char *> ds) : contract(receiver, code, ds), wage_symbol("SYS", 4), table_wage(_self, _self.value){}
 
     [[eosio::action]]
     void placewage(const name& employer, const name& worker, const int64_t& wage_per_day, const uint32_t& days) {
@@ -49,10 +58,9 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       check(wage_per_day > 0, "Wage must be positive");
       check(days >= 1, "Wage must be minimum for 1 day");
 
-      wage_table wage_table(get_self(), employer.value);
-
-      wage_table.emplace(get_self(), [&](auto &row) {
-        int primary_key = wage_table.available_primary_key();
+      print(std::to_string(employer.value) + " Employer's value");
+      table_wage.emplace(get_self(), [&](auto &row) {
+        int primary_key = table_wage.available_primary_key();
         int64_t whole_wage = wage_per_day * days;
         row.id = primary_key;
         row.employer = employer;
@@ -66,6 +74,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
         row.is_accepted = false;
         row.start_date = NULL;
         row.end_date = NULL;
+        send_expiration_cleaner(employer, primary_key, 86400);
       });
     }
 
@@ -81,42 +90,43 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       check(quantity.amount > 0, "When pigs fly");
       check(quantity.symbol == wage_symbol, "These are not the droids you are looking for.");
 
-      wage_table wage_table(get_self(), employer.value);
-      auto wage = wage_table.begin();
 
-      check(wage != wage_table.end(), "Not found any wage of this employer");
-      check(wage->is_charged == false, "The wage is already charged");
-
-      while(wage->wage_amount.amount != quantity.amount && wage != wage_table.end()) {
+      // hf
+      auto wage_index = table_wage.get_index<"byemployer"_n>();
+      auto wage = wage_index.lower_bound(employer.value);
+      while(wage != wage_index.end()
+      && wage->employer.value == employer.value) {
+        if(wage->wage_amount == quantity && wage-> is_charged == false) {
+          break;
+        }
         wage++;
       }
 
-      check(wage != wage_table.end(), "Not found any wage with this amount. Please check your placed wage.");
-      wage_table.modify(wage, get_self(), [&](auto& raw) {
-        // uint32_t start = now();
-        // uint32_t end = start + (86400 * raw.term_days);
+      check(wage != wage_index.end() && wage->employer.value == employer.value, "Not found any wage with this amount, employer and not charged. Please check your placed wage.");
+      wage_index.modify(wage, get_self(), [&](auto& raw) {
         raw.is_charged = true;
         raw.wage_frozen = quantity;
-        // raw.start_date = start;
-        // raw.end_date = end;
       });
-
+      cancel_deferred(wage->id);
       notify_user(employer, std::string(" Your wage is successfully chaged. Waiting for worker to accept"));
-      std::string notification = std::string(" Employer placed job for you! Employer: ") + name{employer}.to_string() + ", jobId: " + std::to_string(wage->id);
+      std::string notification = std::string(" Employer placed job for you! Employer: ") + name{wage->employer}.to_string() + ", jobId: " + std::to_string(wage->id);
       notify_user(wage->worker, notification);
     }
 
     [[eosio::action]]
     void closewage(const name& employer, const uint64_t& id) {
       require_auth(employer);
-      wage_table wage_table(get_self(), employer.value);
-      auto wage = wage_table.find(id);
-      check(wage != wage_table.end(), "This wage doesn't exist");
+      // table_wage table_wage(get_self(), employer.value);
+      auto wage = table_wage.find(id);
+      check(wage != table_wage.end(), "This wage doesn't exist");
+      check(wage->employer.value == employer.value, "This is not your wage");
       if(wage->is_charged == true) {
         notify_user(wage->worker, std::string("Your wage contract is closed by employer. All your work days will be paid"));
-        cash_out_transaction(wage, wage_table);
+        cash_out_transaction(wage, table_wage);
+        cancel_deferred(wage->id);
       } else {
-        wage_table.erase(wage);
+        table_wage.erase(wage);
+        cancel_deferred(wage->id);
       }
     }
 
@@ -124,11 +134,11 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
     void addworkday(const name& employer, const uint64_t& id) {
       require_auth(employer);
 
-      wage_table wage_table(get_self(), employer.value);
-      auto wage = wage_table.find(id);
-      check(wage != wage_table.end(), "No wage contract found with this id");
+      // table_wage table_wage(get_self(), employer.value);
+      auto wage = table_wage.find(id);
+      check(wage != table_wage.end(), "No wage contract found with this id");
       check(wage->is_accepted == true, "This wage contract isn't accepted");
-      wage_table.modify(wage, get_self(), [&](auto& row) {
+      table_wage.modify(wage, get_self(), [&](auto& row) {
         row.worked_days = row.worked_days + 1;
       });
     }
@@ -137,38 +147,41 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
     void claimwage(const name& worker, const name& employer, const uint64_t& id) {
       require_auth(worker);
       check(is_account(employer), "Employer's account doesn't exist");
-      wage_table wage_table(get_self(), employer.value);
-      auto wage = wage_table.find(id);
-      check(wage != wage_table.end(), "There's no wage contract with such an id");
+      // table_wage table_wage(get_self(), employer.value);
+      auto wage = table_wage.find(id);
+      check(wage != table_wage.end(), "There's no wage contract with such an id");
       // check(wage->is_charged == true, "The wage contract isn't charged");
+      check(wage->worker == worker, "You are not the worker of this wage contract");
       check(wage->is_accepted == true, "The wage contract isn't accepted");
       check(wage->end_date < now(), "The contract isn't ended");
 
-      cash_out_transaction(wage, wage_table);
+      cash_out_transaction(wage, table_wage);
     }
 
     [[eosio::action]]
     void acceptwage(const name& worker, const name& employer, const uint64_t& id, const bool& isaccepted) {
       require_auth(worker);
-      check(is_account(employer), "Employer's account doesn't exist");
-      wage_table wage_table(get_self(), employer.value);
-      auto wage = wage_table.find(id);
-      check(wage != wage_table.end(), "There's no wage contract with such an id");
+      check(is_account(employer), "Employer's account doesn't exist"); // If employer deletes his account it may cause a problem
+      // table_wage table_wage(get_self(), employer.value);
+      auto wage = table_wage.find(id);
+      check(wage != table_wage.end(), "There's no wage contract with such an id");
       check(wage->is_charged == true, "The wage contract isn't charged. Contract must be charge before accepted");
       check(wage->is_accepted == false, "The wage contract is already accepted");
 
       if(isaccepted) {
-        wage_table.modify(wage, get_self(), [&](auto& row) {
+        table_wage.modify(wage, get_self(), [&](auto& row) {
           uint32_t start = now();
           uint32_t end = start + (86400 * row.term_days);
           row.is_accepted = true;
           row.start_date = start;
           row.end_date = end;
+          send_auto_cashout(employer, id, end - start);
         });
         print("Job is successfully accepted! Job starts at this moment");
         notify_user(employer, std::string(" the wage contract is accepted by worker. Job is started. Worker: ")
         + name{worker}.to_string()
         + ", id: " + std::to_string(id));
+
       } else {
         print("You have declined the job. Come back if you've changed your mind");
         notify_user(employer, std::string(" the wage contract is declined by worker. Close wage or try to change his mind.")
@@ -178,14 +191,64 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
     }
 
     [[eosio::action]]
-    void notify(name user, std::string msg) {
+    void notify(const name& user, const std::string& msg) {
       require_auth(get_self());
       require_recipient(user);
     }
 
-  private:
+    [[eosio::action]]
+    void expireclean(const name& employer, const uint64_t& id) {
+      require_auth(get_self());
+      // require_recipient(user);
+      // check(is_account(employer), "Employer's account doesn't exist"); // If employer deletes his account it may cause a problem
+      // table_wage table_wage(get_self(), employer.value);
+      auto wage = table_wage.find(id);
+      check(wage != table_wage.end(), "There's no wage contract with such an id end employer");
+      check(wage->is_charged == false, "The wage contract is charged. No need to erase it");
+      table_wage.erase(wage);
+    }
 
-    void notify_user(name user, std::string message) {
+    [[eosio::action]]
+    void autocashout(const name& employer, const uint64_t& id) {
+      require_auth(get_self());
+
+      // check(is_account(employer), "Employer's account doesn't exist");
+      // table_wage table_wage(get_self(), employer.value);
+      auto wage = table_wage.find(id);
+      check(wage != table_wage.end(), "There's no wage contract with such an id and employer");
+      check(wage->is_accepted == true, "The wage contract isn't accepted");
+      // check(wage->end_date < now(), "The contract isn't ended");
+
+      cash_out_transaction(wage, table_wage);
+    }
+
+  private:
+    void send_expiration_cleaner(const name& employer, const uint64_t& id, const uint32_t& delay) {
+      eosio::transaction deferred;
+
+      deferred.actions.emplace_back (
+        permission_level{get_self(),"active"_n},
+        get_self(), "expireclean"_n,
+        std::make_tuple(employer, id)
+      );
+      deferred.delay_sec = delay;
+
+      deferred.send(id, employer);
+    }
+
+    void send_auto_cashout(const name& employer, const uint64_t& id, const uint32_t& delay) {
+      eosio::transaction deferred;
+
+      deferred.actions.emplace_back (
+        permission_level{get_self(), "active"_n},
+        get_self(), "autocashout"_n,
+        std::make_tuple(employer, id)
+      );
+      deferred.delay_sec = delay;
+      deferred.send(id, employer);
+    }
+
+    void notify_user(const name& user, const std::string& message) {
       action(
         permission_level{get_self(), "active"_n},
         get_self(),
