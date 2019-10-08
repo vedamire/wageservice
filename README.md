@@ -47,5 +47,5 @@ Closes wage contract ahead of schedule. If wage contract is already charged or e
 
 ## License & Copyright
 [GNU AGPL](https://github.com/vedamire/wageservice/blob/master/LICENSE)
-@ Vedamir Efanov
+Copyright © Vedamir Efanov 2019. All rights reserved.
 
