@@ -12,6 +12,10 @@
                     "type": "name"
                 },
                 {
+                    "name": "id",
+                    "type": "uint64"
+                },
+                {
                     "name": "isaccepted",
                     "type": "bool"
                 }
@@ -25,6 +29,16 @@
                     "name": "employer",
                     "type": "name"
                 },
+                {
+                    "name": "id",
+                    "type": "uint64"
+                }
+            ]
+        },
+        {
+            "name": "autocashout",
+            "base": "",
+            "fields": [
                 {
                     "name": "id",
                     "type": "uint64"
@@ -60,6 +74,34 @@
                 {
                     "name": "id",
                     "type": "uint64"
+                }
+            ]
+        },
+        {
+            "name": "expireclean",
+            "base": "",
+            "fields": [
+                {
+                    "name": "employer",
+                    "type": "name"
+                },
+                {
+                    "name": "id",
+                    "type": "uint64"
+                }
+            ]
+        },
+        {
+            "name": "notify",
+            "base": "",
+            "fields": [
+                {
+                    "name": "user",
+                    "type": "name"
+                },
+                {
+                    "name": "msg",
+                    "type": "string"
                 }
             ]
         },
@@ -126,6 +168,10 @@
                     "type": "uint32"
                 },
                 {
+                    "name": "is_accepted",
+                    "type": "bool"
+                },
+                {
                     "name": "start_date",
                     "type": "uint32"
                 },
@@ -148,6 +194,11 @@
             "ricardian_contract": ""
         },
         {
+            "name": "autocashout",
+            "type": "autocashout",
+            "ricardian_contract": ""
+        },
+        {
             "name": "claimwage",
             "type": "claimwage",
             "ricardian_contract": ""
@@ -155,6 +206,16 @@
         {
             "name": "closewage",
             "type": "closewage",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "expireclean",
+            "type": "expireclean",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "notify",
+            "type": "notify",
             "ricardian_contract": ""
         },
         {

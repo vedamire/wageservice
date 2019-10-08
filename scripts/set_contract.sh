@@ -1,1 +1,1 @@
-cleos set contract wageservice /home/alex/contracts/wageservice -p wageservice@active
+cleos set contract wageservice /home/ally/contracts/wageservice -p wageservice@active
