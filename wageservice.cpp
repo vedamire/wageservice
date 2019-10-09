@@ -85,6 +85,10 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
         this->notify_user(*worker, std::string("Your wage contract is closed by employer. All your work days will be paid"));
       });
       string workday_post = "addworkday";
+      observer.add_func(workday_post, [&](const uint64_t* id, const name* employer, const name* worker) {
+        print("You've successfully added a day to the wage contract!");
+        this->notify_user(*worker, std::string("Employer successfully added your work day!"));
+      });
       string claimed_post = "claimwage";
       string accepted_post = "acceptwage_accepted";
       observer.add_func(accepted_post, [&](const uint64_t* id, const name* employer, const name* worker) {
@@ -197,7 +201,6 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
     [[eosio::action]]
     void claimwage(const name& worker, const name& employer, const uint64_t& id) {
       require_auth(worker);
-      check(is_account(employer), "Employer's account doesn't exist");
       auto wage = table_wage.find(id);
 
       check(wage != table_wage.end(), "There's no wage contract with such an id");
