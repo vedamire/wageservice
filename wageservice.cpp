@@ -43,7 +43,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       name worker;
       eosio::asset wage_frozen;
       eosio::asset wage_per_day;
-      bool is_charged;
+      bool is_specified;
       uint32_t term_days;
       uint32_t worked_days;
       bool is_accepted;
@@ -119,7 +119,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       const asset wage_per_day = wage->wage_frozen / converted_days;
       check(wage_per_day >= MIN, "Wage per day must be at least 1 eos");
       table_wage.modify(wage, get_self(), [&](auto& row) {
-        row.is_charged = true;
+        row.is_specified = true;
         row.worker = worker;
         row.term_days = days;
         row.wage_per_day = wage_per_day;
@@ -147,7 +147,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
           row.worker = employer;
           row.wage_frozen = quantity;
           row.wage_per_day = eosio::asset(0, wage_symbol);
-          row.is_charged = false;
+          row.is_specified = false;
           row.term_days = NULL;
           row.worked_days = 0;
           row.is_accepted = false;
@@ -206,7 +206,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       auto wage = table_wage.find(id);
       check(wage != table_wage.end(), "There's no wage contract with such an id");
       check(wage->worker == worker, "You are not worker");
-      check(wage->is_charged == true, "The wage contract isn't charged. Contract must be charge before accepted");
+      check(wage->is_specified == true, "The wage contract isn't charged. Contract must be charge before accepted");
       check(wage->is_accepted == false, "The wage contract is already accepted");
 
       if(isaccepted) {
