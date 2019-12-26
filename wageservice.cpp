@@ -35,7 +35,6 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
   private:
     observer observer;
     const symbol wage_symbol;
-    // const name _self;
     struct [[eosio::table]] wage_v1
     {
       uint64_t id;
@@ -65,7 +64,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
 
   public:
     using contract::contract;
-    wageservice(name receiver, name code, datastream<const char *> ds) : contract(receiver, code, ds), wage_symbol("SYS", 4), table_wage(_self, _self.value) {
+    wageservice(name receiver, name code, datastream<const char *> ds) : contract(receiver, code, ds), wage_symbol("EOS", 4), table_wage(_self, _self.value) {
       using namespace std;
       // Preset everything
       string placed_post = "placewage";
