@@ -114,12 +114,12 @@
                     "type": "name"
                 },
                 {
-                    "name": "worker",
-                    "type": "name"
+                    "name": "id",
+                    "type": "uint64"
                 },
                 {
-                    "name": "wage_per_day",
-                    "type": "int64"
+                    "name": "worker",
+                    "type": "name"
                 },
                 {
                     "name": "days",
@@ -142,10 +142,6 @@
                 {
                     "name": "worker",
                     "type": "name"
-                },
-                {
-                    "name": "wage_amount",
-                    "type": "asset"
                 },
                 {
                     "name": "wage_frozen",
@@ -178,6 +174,10 @@
                 {
                     "name": "end_date",
                     "type": "uint32"
+                },
+                {
+                    "name": "rest",
+                    "type": "asset"
                 }
             ]
         }
