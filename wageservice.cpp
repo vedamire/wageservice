@@ -6,8 +6,6 @@
 
 using namespace eosio;
 
-typedef std::function<void(const uint64_t*, const name*, const name*)> notify_func;
-
 class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
   private:
     // observer observer;
@@ -159,9 +157,32 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
     }
 
     [[eosio::action]]
-    void notify(const name& user, const std::string& msg) {
-      require_auth(get_self());
-      require_recipient(user);
+    void defertxn(const uint32_t& delay, const uint64_t& sendid, const uint64_t& _id) {
+        require_auth(get_self());
+        eosio::transaction deferred;
+        uint32_t max_delay = 3888000; //max delay supported by EOS 3888000
+        if (delay <= max_delay){
+          deferred.actions.emplace_back (
+            permission_level{get_self(), "active"_n},
+            get_self(), "autocashout"_n,
+            std::make_tuple(_id)
+          );
+          deferred.delay_sec = delay;
+          deferred.send(_id, get_self());
+        //perform your transaction here
+        }
+        else{
+            uint32_t remaining_delay = delay - max_delay;
+            uint64_t newid = updateSenderId(sendid); //sender id should be updated for every recursive call
+            // transaction to update the delay
+            deferred.actions.emplace_back(
+                eosio::permission_level{get_self(), "active"_n},
+                get_self(),
+                "defertxn"_n,
+                std::make_tuple(remaining_delay, newid, _id));
+            deferred.delay_sec = max_delay; // here we set the new delay which is maximum until remaining_delay is less the max_delay
+            deferred.send(sendid, get_self());
+        }
     }
 
     [[eosio::action]]
@@ -176,26 +197,22 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
     }
 
   private:
+
     void send_auto_cashout(const uint64_t& id, const uint32_t& delay) {
-      eosio::transaction deferred;
-
-      deferred.actions.emplace_back (
-        permission_level{get_self(), "active"_n},
-        get_self(), "autocashout"_n,
-        std::make_tuple(id)
-      );
-      deferred.delay_sec = delay;
-      deferred.send(id, get_self());
-    }
-
-    void notify_user(const name& user, const std::string& message) {
-      action(
-        permission_level{get_self(), "active"_n},
+      action (
+        permission_level(get_self(),"active"_n),
         get_self(),
-        "notify"_n,
-        std::make_tuple(user, name{user}.to_string() + message)
+        "defertxn"_n,
+        std::make_tuple(delay, id, id)
       ).send();
     }
+
+    uint64_t updateSenderId(const uint64_t& id) {
+      const uint64_t base = 10000000;
+      if(id < base) return id + base;
+      else return id - base;
+    }
+
     // const in wage_table probably overloaded because it causes an error
     void cash_out_transaction(const wage_table::const_iterator& wage, wage_table& table) {
       eosio::asset fullwage = wage->wage_per_day * wage->worked_days;
