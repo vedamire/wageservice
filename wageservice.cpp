@@ -49,7 +49,6 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       bool is_accepted;
       uint32_t start_date;
       uint32_t end_date;
-      eosio::asset rest;
       uint64_t primary_key() const { return id; }
       uint64_t get_secondary_1() const { return employer.value;}
 
@@ -111,43 +110,20 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
     [[eosio::action]]
     void placewage(const name& employer, const uint64_t& id, const name& worker,  const uint32_t& days) {
       require_auth(employer);
-
       check(is_account(worker), "Worker's account doesn't exist");
-      // check(wage_per_day > 0, "Wage must be positive");
       check(days >= 1 && days <= 90, "Wage must be minimum for 1 day and maximum for 90 days");
       auto wage = table_wage.find(id);
       check(wage != table_wage.end(), "This wage doesn't exist");
       check(wage->employer == employer, "This is not your wage");
       const int64_t converted_days = (int64_t) days;
       const asset wage_per_day = wage->wage_frozen / converted_days;
-      // print("wageperday: ", wage_per_day, " min: ", MIN, ", converted_days: ", converted_days);
       check(wage_per_day >= MIN, "Wage per day must be at least 1 eos");
-      const int64_t rest = wage->wage_frozen.amount % converted_days;
       table_wage.modify(wage, get_self(), [&](auto& row) {
         row.is_charged = true;
         row.worker = worker;
         row.term_days = days;
         row.wage_per_day = wage_per_day;
-        row.rest = eosio::asset(rest, wage_symbol);;
       });
-      // uint64_t primary_key = table_wage.available_primary_key();
-      // table_wage.emplace(get_self(), [&](auto &row) {
-      //   int64_t whole_wage = wage_per_day * days;
-      //   row.id = primary_key;
-      //   row.employer = employer;
-      //   row.worker = worker;
-      //   row.wage_amount = eosio::asset(whole_wage, wage_symbol);
-      //   row.wage_frozen = eosio::asset(0, wage_symbol);
-      //   row.wage_per_day = eosio::asset(wage_per_day, wage_symbol);
-      //   row.is_charged = false;
-      //   row.term_days = days;
-      //   row.worked_days = 0;
-      //   row.is_accepted = false;
-      //   row.start_date = NULL;
-      //   row.end_date = NULL;
-      //   // send_expiration_cleaner(employer, primary_key, 86400);
-      // });
-      // observer.notify_channel(__func__, &primary_key, &employer, &worker);
     }
 
     [[eosio::on_notify("eosio.token::transfer")]]
@@ -177,31 +153,11 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
           row.is_accepted = false;
           row.start_date = NULL;
           row.end_date = NULL;
-          row.rest = eosio::asset(0, wage_symbol);
-          // send_expiration_cleaner(employer, primary_key, 86400);
         });
       } else {
         check(memo == "replenish", "Wrong memo. To transfer money here use ether 'placewage' or 'replenish' memo");
         print("Account is successfully replenished");
       }
-      // hf
-      // auto wage_index = table_wage.get_index<"byemployer"_n>();
-      // auto wage = wage_index.lower_bound(employer.value);
-      // while(wage != wage_index.end()
-      // && wage->employer == employer) {
-      //   if(wage->wage_amount == quantity && wage-> is_charged == false) {
-      //     break;
-      //   }
-      //   wage++;
-      // }
-      // check(wage != wage_index.end() && wage->employer == employer, "Not found any wage with this amount, employer and not charged. Please check your placed wage.");
-      // wage_index.modify(wage, get_self(), [&](auto& raw) {
-      //   raw.is_charged = true;
-      //   raw.wage_frozen = quantity;
-      // });
-      // cancel_deferred(wage->id);
-      // observer.notify_channel(__func__, &wage->id, &wage->employer, &wage->worker);
-
     }
 
     [[eosio::action]]
@@ -210,14 +166,10 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       auto wage = table_wage.find(id);
       check(wage != table_wage.end(), "This wage doesn't exist");
       check(wage->employer == employer, "This is not your wage");
-      // if(wage->is_charged == true) {
-        cash_out_transaction(wage, table_wage);
-        cancel_deferred(wage->id);
-        observer.notify_channel(__func__, &wage->id, &wage->employer, &wage->worker);
-      // } else {
-      //   table_wage.erase(wage);
-      //   cancel_deferred(wage->id);
-      // }
+      cash_out_transaction(wage, table_wage);
+      cancel_deferred(wage->id);
+      observer.notify_channel(__func__, &wage->id, &wage->employer, &wage->worker);
+
     }
 
     [[eosio::action]]
@@ -279,16 +231,6 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
     }
 
     [[eosio::action]]
-    void expireclean(const name& employer, const uint64_t& id) {
-      require_auth(get_self());
-      // require_recipient(user);
-      auto wage = table_wage.find(id);
-      check(wage != table_wage.end(), "There's no wage contract with such an id end employer");
-      check(wage->is_charged == false, "The wage contract is charged. No need to erase it");
-      table_wage.erase(wage);
-    }
-
-    [[eosio::action]]
     void autocashout(const uint64_t& id) {
       require_auth(get_self());
       auto wage = table_wage.find(id);
@@ -300,19 +242,6 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
     }
 
   private:
-    void send_expiration_cleaner(const name& employer, const uint64_t& id, const uint32_t& delay) {
-      eosio::transaction deferred;
-
-      deferred.actions.emplace_back (
-        permission_level{get_self(),"active"_n},
-        get_self(), "expireclean"_n,
-        std::make_tuple(employer, id)
-      );
-      deferred.delay_sec = delay;
-
-      deferred.send(id, employer);
-    }
-
     void send_auto_cashout(const uint64_t& id, const uint32_t& delay) {
       eosio::transaction deferred;
 
@@ -337,8 +266,6 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
     void cash_out_transaction(const wage_table::const_iterator& wage, wage_table& table) {
       eosio::asset fullwage = wage->wage_per_day * wage->worked_days;
       eosio::asset rest = wage->wage_frozen - fullwage;
-      // if(wage->worked_days == wage->term_days) fullwage += wage->rest;
-      // else rest += wage->rest;
       table.erase(wage);
 
       if(fullwage.amount > 0) {
