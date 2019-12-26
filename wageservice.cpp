@@ -120,7 +120,8 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       check(wage->employer == employer, "This is not your wage");
       const int64_t converted_days = (int64_t) days;
       const asset wage_per_day = wage->wage_frozen / converted_days;
-      check(wage_per_day <= MIN, "Wage per day must be at least 1 eos");
+      // print("wageperday: ", wage_per_day, " min: ", MIN, ", converted_days: ", converted_days);
+      check(wage_per_day >= MIN, "Wage per day must be at least 1 eos");
       const int64_t rest = wage->wage_frozen.amount % converted_days;
       table_wage.modify(wage, get_self(), [&](auto& row) {
         row.is_charged = true;
@@ -336,8 +337,8 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
     void cash_out_transaction(const wage_table::const_iterator& wage, wage_table& table) {
       eosio::asset fullwage = wage->wage_per_day * wage->worked_days;
       eosio::asset rest = wage->wage_frozen - fullwage;
-      if(wage->worked_days == wage->term_days) fullwage += wage->rest;
-      else rest += wage->rest;
+      // if(wage->worked_days == wage->term_days) fullwage += wage->rest;
+      // else rest += wage->rest;
       table.erase(wage);
 
       if(fullwage.amount > 0) {
