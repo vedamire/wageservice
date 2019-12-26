@@ -137,7 +137,7 @@ class TestStringMethods(unittest.TestCase):
             },
             charlie)
         js = captureConsole(lambda _:wageservice.table("wagev1", wageservice))["rows"][0];
-        print(js);
+        # print(js);
         self.assertEqual(js["wage_frozen"], "6.0000 EOS")
         wageservice.push_action(
             "placewage",

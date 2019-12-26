@@ -4,36 +4,36 @@
 #include <eosio/system.hpp>
 #include <eosio/transaction.hpp>
 
-#include <vector>
-#include <functional>
-#include <map>
+// #include <vector>
+// #include <functional>
+// #include <map>
 
 using namespace eosio;
 
 typedef std::function<void(const uint64_t*, const name*, const name*)> notify_func;
 
-class observer
-{
-  public:
-
-    void add_func(const std::string& channel, const notify_func& func)
-    {
-      observer_channels[channel].push_back(func);
-    }
-    void notify_channel(const std::string& channel, const uint64_t* id, const name* employer, const name* worker)
-    {
-      auto target = observer_channels[channel];
-      for (auto& func : target) {
-        func(id, employer, worker);
-      }
-    }
-  private:
-    std::map<std::string, std::vector<notify_func>> observer_channels;
-};
+// class observer
+// {
+//   public:
+//
+//     void add_func(const std::string& channel, const notify_func& func)
+//     {
+//       observer_channels[channel].push_back(func);
+//     }
+//     void notify_channel(const std::string& channel, const uint64_t* id, const name* employer, const name* worker)
+//     {
+//       auto target = observer_channels[channel];
+//       for (auto& func : target) {
+//         func(id, employer, worker);
+//       }
+//     }
+//   private:
+//     std::map<std::string, std::vector<notify_func>> observer_channels;
+// };
 
 class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
   private:
-    observer observer;
+    // observer observer;
     const symbol wage_symbol;
     const asset MIN;
     struct [[eosio::table]] wage_v1
@@ -68,43 +68,43 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
      MIN(1.0000, this->wage_symbol), table_wage(_self, _self.value) {
       using namespace std;
       // Preset everything
-      string placed_post = "placewage";
-      observer.add_func(placed_post, [&](const uint64_t* id, const name* employer, const name* worker) {
-         this->notify_user(*employer, std::string(" Your wage is successfully placed! Charge it in 1 day. id: ") + to_string(*id));
-      });
-      string charge_post = "chargewage";
-      observer.add_func(charge_post, [&](const uint64_t* id, const name* employer, const name* worker) {
-        this->notify_user(*employer, std::string(" Your wage is successfully charged. Waiting for worker to accept"));
-      });
-      observer.add_func(charge_post, [&](const uint64_t* id, const name* employer, const name* worker) {
-        std::string notification = std::string(" Employer placed job for you! Employer: ") + name{*employer}.to_string() + ", jobId: " + std::to_string(*id);
-        this->notify_user(*worker, notification);
-      });
-      string closed_post = "closewage";
-      observer.add_func(closed_post, [&](const uint64_t* id, const name* employer, const name* worker) {
-        this->notify_user(*worker, std::string("Your wage contract is closed by employer. All your work days will be paid"));
-      });
-      string workday_post = "addworkday";
-      observer.add_func(workday_post, [&](const uint64_t* id, const name* employer, const name* worker) {
-        print("You've successfully added a day to the wage contract!");
-        this->notify_user(*worker, std::string("Employer successfully added your work day!"));
-      });
-      string claimed_post = "claimwage";
-      string accepted_post = "acceptwage_accepted";
-      observer.add_func(accepted_post, [&](const uint64_t* id, const name* employer, const name* worker) {
-        print("Job is successfully accepted! Job starts at this moment");
-        notify_user(*employer, std::string(" the wage contract is accepted by worker. Job is started. Worker: ")
-        + worker->to_string()
-        + ", id: " + std::to_string(*id));
-      });
-
-      string declined_post = "acceptwage_declined";
-      observer.add_func(declined_post, [&](const uint64_t* id, const name* employer, const name* worker) {
-        print("You have declined the job. Come back if you've changed your mind");
-        notify_user(*employer, std::string(" the wage contract is declined by worker. Close wage or try to change his mind.")
-         + worker->to_string()
-         + ", id: " + std::to_string(*id));
-      });
+      // string placed_post = "placewage";
+      // observer.add_func(placed_post, [&](const uint64_t* id, const name* employer, const name* worker) {
+      //    this->notify_user(*employer, std::string(" Your wage is successfully placed! Charge it in 1 day. id: ") + to_string(*id));
+      // });
+      // string charge_post = "chargewage";
+      // observer.add_func(charge_post, [&](const uint64_t* id, const name* employer, const name* worker) {
+      //   this->notify_user(*employer, std::string(" Your wage is successfully charged. Waiting for worker to accept"));
+      // });
+      // observer.add_func(charge_post, [&](const uint64_t* id, const name* employer, const name* worker) {
+      //   std::string notification = std::string(" Employer placed job for you! Employer: ") + name{*employer}.to_string() + ", jobId: " + std::to_string(*id);
+      //   this->notify_user(*worker, notification);
+      // });
+      // string closed_post = "closewage";
+      // observer.add_func(closed_post, [&](const uint64_t* id, const name* employer, const name* worker) {
+      //   this->notify_user(*worker, std::string("Your wage contract is closed by employer. All your work days will be paid"));
+      // });
+      // string workday_post = "addworkday";
+      // observer.add_func(workday_post, [&](const uint64_t* id, const name* employer, const name* worker) {
+      //   print("You've successfully added a day to the wage contract!");
+      //   this->notify_user(*worker, std::string("Employer successfully added your work day!"));
+      // });
+      // string claimed_post = "claimwage";
+      // string accepted_post = "acceptwage_accepted";
+      // observer.add_func(accepted_post, [&](const uint64_t* id, const name* employer, const name* worker) {
+      //   print("Job is successfully accepted! Job starts at this moment");
+      //   notify_user(*employer, std::string(" the wage contract is accepted by worker. Job is started. Worker: ")
+      //   + worker->to_string()
+      //   + ", id: " + std::to_string(*id));
+      // });
+      //
+      // string declined_post = "acceptwage_declined";
+      // observer.add_func(declined_post, [&](const uint64_t* id, const name* employer, const name* worker) {
+      //   print("You have declined the job. Come back if you've changed your mind");
+      //   notify_user(*employer, std::string(" the wage contract is declined by worker. Close wage or try to change his mind.")
+      //    + worker->to_string()
+      //    + ", id: " + std::to_string(*id));
+      // });
     }
 
     [[eosio::action]]
@@ -168,7 +168,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       check(wage->employer == employer, "This is not your wage");
       cash_out_transaction(wage, table_wage);
       cancel_deferred(wage->id);
-      observer.notify_channel(__func__, &wage->id, &wage->employer, &wage->worker);
+      // observer.notify_channel(__func__, &wage->id, &wage->employer, &wage->worker);
 
     }
 
@@ -218,9 +218,9 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
           row.end_date = end;
           send_auto_cashout(id, end - start);
         });
-        observer.notify_channel(std::string(__func__) + "_accepted", &wage->id, &wage->employer, &wage->worker);
+        // observer.notify_channel(std::string(__func__) + "_accepted", &wage->id, &wage->employer, &wage->worker);
       } else {
-        observer.notify_channel(std::string(__func__) + "_declined", &wage->id, &wage->employer, &wage->worker);
+        // observer.notify_channel(std::string(__func__) + "_declined", &wage->id, &wage->employer, &wage->worker);
       }
     }
 
