@@ -1,14 +1,2 @@
-# Sources
-*.c     text diff=c
-*.cc    text diff=cpp
-*.cxx   text diff=cpp
-*.cpp   text diff=cpp
-*.c++   text diff=cpp
-*.hpp   text diff=cpp
-*.h     text diff=c
-*.h++   text diff=cpp
-*.hh    text diff=cpp
-*.py    text diff=cpp
-# Compiled Object files
-*.wasm   binary
-*.abi    binary
+* linguist-vendored
+*.cpp linguist-vendored=false
