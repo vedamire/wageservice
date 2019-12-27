@@ -11,6 +11,8 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
     // observer observer;
     const symbol wage_symbol;
     const asset MIN;
+    const asset FEE;
+
     struct [[eosio::table]] wage_v1
     {
       uint64_t id;
@@ -40,7 +42,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
   public:
     using contract::contract;
     wageservice(name receiver, name code, datastream<const char *> ds) : contract(receiver, code, ds), wage_symbol("EOS", 4),
-     MIN(1.0000, this->wage_symbol), table_wage(_self, _self.value) {}
+     MIN(10000, this->wage_symbol), FEE(300, this->wage_symbol), table_wage(_self, _self.value) {}
 
     [[eosio::action]]
     void placewage(const name& employer, const uint64_t& id, const name& worker,  const uint32_t& days) {
@@ -74,13 +76,19 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       check(quantity.symbol == wage_symbol, "These are not the droids you are looking for.");
 
       if(memo == "placewage") {
+        print("Quantity: ", quantity, " ");
+        print("MIN: ", MIN, " ");
+        print("FEE: ", FEE, " ");
+        const asset minfee = MIN + FEE;
+        print("minfee: ", minfee, " ");
+        check(quantity >= minfee, "Full wage must be at least 1.0300 EOS");
         uint64_t primary_key = table_wage.available_primary_key();
         table_wage.emplace(get_self(), [&](auto &row) {
           // int64_t whole_wage = wage_per_day * days;
           row.id = primary_key;
           row.employer = employer;
           row.worker = employer;
-          row.wage_frozen = quantity;
+          row.wage_frozen = quantity - FEE;
           row.wage_per_day = eosio::asset(0, wage_symbol);
           row.is_specified = false;
           row.term_days = NULL;
