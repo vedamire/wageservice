@@ -190,9 +190,80 @@ class TestStringMethods(unittest.TestCase):
                     "id": i
                 },
                 permission=(charlie, Permission.ACTIVE))
-        res = toStr(toFloat("50.0000 EOS") + (toFloat(afterFee(quantity)) * 5));
+        res = toStr(toFloat("50.0000 EOS") + (toFloat(afterFee(quantity)) * times));
         self.assertEqual(Balance(bob), res)
 
+    def test_partial(self):
+        quantity = "5.0000 EOS";
+        times = 8;
+        for i in range(times):
+            time.sleep(0.5);
+            token_host.push_action(
+                "transfer",
+                {
+                    "from": charlie, "to": wageservice1,
+                    "quantity": quantity, "memo":"placewage"
+                },
+                charlie);
+        # arr = captureConsole(lambda _: wageservice1.table("wagev1", wageservice1))["rows"];
+        arr = Rows(wageservice1);
+        for i in range(times):
+            self.assertEqual(arr[i]["id"], i);
+            self.assertEqual(arr[i]["is_specified"], False);
+        for i in range(times):
+            wageservice1.push_action(
+                "placewage",
+                {
+                    "employer": charlie,
+                    "id": i,
+                    "worker": bob,
+                    "days": 4
+                },
+                permission=(charlie, Permission.ACTIVE))
+        arr = Rows(wageservice1);
+        for i in range(times):
+            self.assertEqual(arr[i]["is_accepted"], False);
+            self.assertEqual(arr[i]["is_specified"], True);
+            # self.assertEqual(arr[i]["worker"], bob);
+        for i in range(times):
+            wageservice1.push_action(
+                "acceptwage",
+                {
+                    "worker": bob,
+                    "id": i,
+                    "isaccepted": True
+                },
+                permission=(bob, Permission.ACTIVE))
+        arr = Rows(wageservice1)
+        for i in range(times):
+            # self.assertEqual(arr[i]["id"], i);
+            self.assertEqual(arr[i]["is_accepted"], True);
+        for i in range(times):
+            for r in range(2):
+                time.sleep(0.5)
+                wageservice1.push_action(
+                    "addworkday",
+                    {
+                        "employer": charlie,
+                        "id": i
+                    },
+                    permission=(charlie, Permission.ACTIVE));
+        arr = Rows(wageservice1);
+        for i in range(times):
+            self.assertEqual(arr[i]["worked_days"], 2);
+        for i in range(times):
+            wageservice1.push_action(
+                "closewage",
+                {
+                    "employer": charlie,
+                    "id": i
+                },
+                permission=(charlie, Permission.ACTIVE))
+
+        res = toFloat("50.0000 EOS") + (toFloat(afterFee(quantity)) * (times / 2))
+        charlie_balance = toFloat("50.0000 EOS") - (toFloat(quantity) * (times / 2)) - (FEE * (times / 2));
+        self.assertEqual(Balance(bob), toStr(res))
+        self.assertEqual(Balance(charlie), toStr(charlie_balance))
 if __name__ == '__main__':
     unittest.main()
 
