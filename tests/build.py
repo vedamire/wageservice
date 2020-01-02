@@ -3,8 +3,8 @@ reset()
 
 create_master_account("master")
 
-create_account("locktimer", master)
-timer = Contract(locktimer, "/home/ally/contracts/wageservice")
+create_account("wageservice", master)
+timer = Contract(wageservice, "/home/ally/contracts/wageservice")
 
 timer.build()
 

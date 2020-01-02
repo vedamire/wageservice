@@ -3,6 +3,7 @@
 #include <eosio/asset.hpp>
 #include <eosio/system.hpp>
 #include <eosio/transaction.hpp>
+#include <eosio/singleton.hpp>
 
 using namespace eosio;
 
@@ -12,6 +13,13 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
     const symbol wage_symbol;
     const asset MIN;
     const asset FEE;
+
+    struct counter {
+     uint64_t deferid;
+   };
+
+   typedef eosio::singleton<"counter"_n, counter> counter_table;
+   counter_table counters;
 
     struct [[eosio::table]] wage_v1
     {
@@ -42,7 +50,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
   public:
     using contract::contract;
     wageservice(name receiver, name code, datastream<const char *> ds) : contract(receiver, code, ds), wage_symbol("EOS", 4),
-     MIN(10000, this->wage_symbol), FEE(300, this->wage_symbol), table_wage(_self, _self.value) {}
+     MIN(10000, this->wage_symbol), FEE(300, this->wage_symbol), table_wage(_self, _self.value), counters(_self, _self.value)  {}
 
     [[eosio::action]]
     void placewage(const name& employer, const uint64_t& id, const name& worker,  const uint32_t& days) {
@@ -165,31 +173,30 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
     }
 
     [[eosio::action]]
-    void defertxn(const uint32_t& delay, const uint64_t& sendid, const uint64_t& _id) {
+    void defertxn(const uint32_t& delay, const uint64_t& _id) {
         require_auth(get_self());
         eosio::transaction deferred;
         uint32_t max_delay = 3888000; //max delay supported by EOS 3888000
-        if (delay <= max_delay){
+        if (delay <= max_delay) {
           deferred.actions.emplace_back (
             permission_level{get_self(), "active"_n},
             get_self(), "autocashout"_n,
             std::make_tuple(_id)
           );
           deferred.delay_sec = delay;
-          deferred.send(_id, get_self());
+          deferred.send(updateId(), get_self());
         //perform your transaction here
         }
         else{
             uint32_t remaining_delay = delay - max_delay;
-            uint64_t newid = updateSenderId(sendid); //sender id should be updated for every recursive call
             // transaction to update the delay
             deferred.actions.emplace_back(
                 eosio::permission_level{get_self(), "active"_n},
                 get_self(),
                 "defertxn"_n,
-                std::make_tuple(remaining_delay, newid, _id));
+                std::make_tuple(remaining_delay, _id));
             deferred.delay_sec = max_delay; // here we set the new delay which is maximum until remaining_delay is less the max_delay
-            deferred.send(sendid, get_self());
+            deferred.send(updateId(), get_self());
         }
     }
 
@@ -211,16 +218,23 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
         permission_level(get_self(),"active"_n),
         get_self(),
         "defertxn"_n,
-        std::make_tuple(delay, id, id)
+        std::make_tuple(delay, id)
       ).send();
     }
 
-    uint64_t updateSenderId(const uint64_t& id) {
-      const uint64_t base = 10000000;
-      if(id < base) return id + base;
-      else return id - base;
-    }
 
+    uint64_t updateId() {
+      if(!counters.exists()) {
+        uint64_t initial = 1000;
+        counters.set(counter{initial}, get_self());
+        return initial;
+      }
+      counter count = counters.get();
+      counter newcounter = counter{count.deferid + (uint64_t) 1};
+      counters.set(newcounter, get_self());
+      return newcounter.deferid;
+    }
+    
     // const in wage_table probably overloaded because it causes an error
     void cash_out_transaction(const wage_table::const_iterator& wage, wage_table& table) {
       eosio::asset fullwage = wage->wage_per_day * wage->worked_days;
