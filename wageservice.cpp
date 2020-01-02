@@ -52,14 +52,56 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
     wageservice(name receiver, name code, datastream<const char *> ds) : contract(receiver, code, ds), wage_symbol("EOS", 4),
      MIN(10000, this->wage_symbol), FEE(300, this->wage_symbol), table_wage(_self, _self.value), counters(_self, _self.value)  {}
 
+
+     [[eosio::on_notify("eosio.token::transfer")]]
+     void chargewage(const name& employer, const name& to, const eosio::asset& quantity, const std::string& memo)
+     {
+       if (to != get_self() || employer == get_self())
+       {
+         print("These are not the droids you are looking for.");
+         return;
+       }
+
+       check(quantity.amount > 0, "When pigs fly");
+       check(quantity.symbol == wage_symbol, "These are not the droids you are looking for.");
+
+       if(memo == "placewage") {
+         print("Quantity: ", quantity, " ");
+         print("MIN: ", MIN, " ");
+         print("FEE: ", FEE, " ");
+         const asset minfee = MIN + FEE;
+         print("minfee: ", minfee, " ");
+         check(quantity >= minfee, "Full wage must be at least 1.0300 EOS");
+         uint64_t primary_key = table_wage.available_primary_key();
+         table_wage.emplace(get_self(), [&](auto &row) {
+           // int64_t whole_wage = wage_per_day * days;
+           row.id = primary_key;
+           row.employer = employer;
+           row.worker = employer;
+           row.wage_frozen = quantity - FEE;
+           row.wage_per_day = eosio::asset(0, wage_symbol);
+           row.is_specified = false;
+           row.term_days = NULL;
+           row.worked_days = 0;
+           row.is_accepted = false;
+           row.start_date = NULL;
+           row.end_date = NULL;
+         });
+       } else {
+         check(memo == "replenish", "Wrong memo. To transfer money here use ether 'placewage' or 'replenish' memo");
+         print("Account is successfully replenished");
+       }
+     }
+
     [[eosio::action]]
     void placewage(const name& employer, const uint64_t& id, const name& worker,  const uint32_t& days) {
       require_auth(employer);
       check(is_account(worker), "Worker's account doesn't exist");
       check(days >= 1 && days <= 90, "Wage must be minimum for 1 day and maximum for 90 days");
       auto wage = table_wage.find(id);
-      check(wage != table_wage.end(), "This wage doesn't exist");
+      check(wage != table_wage.end(), "This wage id doesn't exist");
       check(wage->employer == employer, "This is not your wage");
+      check(wage->is_specified == false, "This wage is already specified");
       const int64_t converted_days = (int64_t) days;
       const asset wage_per_day = wage->wage_frozen / converted_days;
       check(wage_per_day >= MIN, "Wage per day must be at least 1 eos");
@@ -69,46 +111,6 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
         row.term_days = days;
         row.wage_per_day = wage_per_day;
       });
-    }
-
-    [[eosio::on_notify("eosio.token::transfer")]]
-    void chargewage(const name& employer, const name& to, const eosio::asset& quantity, const std::string& memo)
-    {
-      if (to != get_self() || employer == get_self())
-      {
-        print("These are not the droids you are looking for.");
-        return;
-      }
-
-      check(quantity.amount > 0, "When pigs fly");
-      check(quantity.symbol == wage_symbol, "These are not the droids you are looking for.");
-
-      if(memo == "placewage") {
-        print("Quantity: ", quantity, " ");
-        print("MIN: ", MIN, " ");
-        print("FEE: ", FEE, " ");
-        const asset minfee = MIN + FEE;
-        print("minfee: ", minfee, " ");
-        check(quantity >= minfee, "Full wage must be at least 1.0300 EOS");
-        uint64_t primary_key = table_wage.available_primary_key();
-        table_wage.emplace(get_self(), [&](auto &row) {
-          // int64_t whole_wage = wage_per_day * days;
-          row.id = primary_key;
-          row.employer = employer;
-          row.worker = employer;
-          row.wage_frozen = quantity - FEE;
-          row.wage_per_day = eosio::asset(0, wage_symbol);
-          row.is_specified = false;
-          row.term_days = NULL;
-          row.worked_days = 0;
-          row.is_accepted = false;
-          row.start_date = NULL;
-          row.end_date = NULL;
-        });
-      } else {
-        check(memo == "replenish", "Wrong memo. To transfer money here use ether 'placewage' or 'replenish' memo");
-        print("Account is successfully replenished");
-      }
     }
 
     [[eosio::action]]
@@ -154,7 +156,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       auto wage = table_wage.find(id);
       check(wage != table_wage.end(), "There's no wage contract with such an id");
       check(wage->worker == worker, "You are not worker");
-      check(wage->is_specified == true, "The wage contract isn't charged. Contract must be charge before accepted");
+      check(wage->is_specified == true, "The wage contract isn't specified yet");
       check(wage->is_accepted == false, "The wage contract is already accepted");
 
       if(isaccepted) {
