@@ -207,6 +207,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
 
       check(wage != table_wage.end(), "There's no wage contract with such an id");
       check(wage->is_accepted == true, "The wage contract isn't accepted");
+      check(wage->end_date < now(), "The contract isn't ended");
 
       cash_out_transaction(wage, table_wage);
     }
