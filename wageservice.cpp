@@ -118,8 +118,6 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       check(wage != table_wage.end(), "This wage doesn't exist");
       check(wage->employer == employer, "This is not your wage");
       cash_out_transaction(wage, table_wage);
-      cancel_deferred(wage->id);
-
     }
 
     [[eosio::action]]
@@ -234,7 +232,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       counters.set(newcounter, get_self());
       return newcounter.deferid;
     }
-    
+
     // const in wage_table probably overloaded because it causes an error
     void cash_out_transaction(const wage_table::const_iterator& wage, wage_table& table) {
       eosio::asset fullwage = wage->wage_per_day * wage->worked_days;

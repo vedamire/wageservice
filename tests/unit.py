@@ -264,6 +264,36 @@ class TestStringMethods(unittest.TestCase):
         charlie_balance = toFloat("50.0000 EOS") - (toFloat(quantity) * (times / 2)) - (FEE * (times / 2));
         self.assertEqual(Balance(bob), toStr(res))
         self.assertEqual(Balance(charlie), toStr(charlie_balance))
+
+    def test_cancel(self):
+        quantity = "5.0000 EOS";
+        times = 6;
+        for i in range(times):
+            time.sleep(0.5);
+            token_host.push_action(
+                "transfer",
+                {
+                    "from": charlie, "to": wageservice1,
+                    "quantity": quantity, "memo":"placewage"
+                },
+                charlie);
+        # arr = captureConsole(lambda _: wageservice1.table("wagev1", wageservice1))["rows"];
+        arr = Rows(wageservice1);
+        for i in range(times):
+            self.assertEqual(arr[i]["id"], i);
+            self.assertEqual(arr[i]["is_specified"], False);
+
+        for i in range(times):
+            wageservice1.push_action(
+                "closewage",
+                {
+                    "employer": charlie,
+                    "id": i
+                },
+                permission=(charlie, Permission.ACTIVE))
+        res = toFloat("50.0000 EOS") - FEE * times;
+        self.assertEqual(Balance(charlie), toStr(res))
+
 if __name__ == '__main__':
     unittest.main()
 
