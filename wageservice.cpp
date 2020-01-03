@@ -155,8 +155,8 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
 
       auto wage = table_wage.find(id);
       check(wage != table_wage.end(), "There's no wage contract with such an id");
-      check(wage->worker == worker, "You are not worker");
       check(wage->is_specified == true, "The wage contract isn't specified yet");
+      check(wage->worker == worker, "You are not worker");
       check(wage->is_accepted == false, "The wage contract is already accepted");
 
       if(isaccepted) {
