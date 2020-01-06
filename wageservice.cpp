@@ -137,7 +137,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
     }
 
     [[eosio::action]]
-    void claimwage(const name& worker, const name& employer, const uint64_t& id) {
+    void claimwage(const name& worker, const uint64_t& id) {
       require_auth(worker);
       auto wage = table_wage.find(id);
 

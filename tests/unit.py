@@ -571,7 +571,6 @@ class TestStringMethods(unittest.TestCase):
                 "claimwage",
                 {
                     "worker": bob,
-                    "employer": charlie,
                     "id": 2
                 },
                 permission=(charlie, Permission.ACTIVE));
@@ -584,7 +583,6 @@ class TestStringMethods(unittest.TestCase):
                 "claimwage",
                 {
                     "worker": bob,
-                    "employer": charlie,
                     "id": 104
                 },
                 permission=(bob, Permission.ACTIVE));
@@ -598,7 +596,6 @@ class TestStringMethods(unittest.TestCase):
                 "claimwage",
                 {
                     "worker": charlie,
-                    "employer": charlie,
                     "id": 2
                 },
                 permission=(charlie, Permission.ACTIVE));
@@ -611,7 +608,6 @@ class TestStringMethods(unittest.TestCase):
                 "claimwage",
                 {
                     "worker": bob,
-                    "employer": charlie,
                     "id": 0
                 },
                 permission=(bob, Permission.ACTIVE));
@@ -625,7 +621,6 @@ class TestStringMethods(unittest.TestCase):
                 "claimwage",
                 {
                     "worker": bob,
-                    "employer": charlie,
                     "id": 2
                 },
                 permission=(bob, Permission.ACTIVE));
