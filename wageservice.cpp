@@ -36,9 +36,11 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       uint32_t end_date;
       uint64_t primary_key() const { return id; }
       uint64_t get_secondary_1() const { return employer.value;}
+      uint64_t get_secondary_2() const { return worker.value;}
 
     };
-    typedef eosio::multi_index<"wagev1"_n, wage_v1, indexed_by<"byemployer"_n, const_mem_fun<wage_v1, uint64_t, &wage_v1::get_secondary_1>>> wage_table;
+    typedef eosio::multi_index<"wagev1"_n, wage_v1, indexed_by<"byemployer"_n, const_mem_fun<wage_v1, uint64_t, &wage_v1::get_secondary_1>>,
+    indexed_by<"byworker"_n, const_mem_fun<wage_v1, uint64_t, &wage_v1::get_secondary_2>>> wage_table;
 
     wage_table table_wage;
 
@@ -77,7 +79,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
            // int64_t whole_wage = wage_per_day * days;
            row.id = primary_key;
            row.employer = employer;
-           row.worker = employer;
+           row.worker = get_self();
            row.wage_frozen = quantity - FEE;
            row.wage_per_day = eosio::asset(0, wage_symbol);
            row.is_specified = false;
@@ -97,6 +99,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
     void placewage(const name& employer, const uint64_t& id, const name& worker,  const uint32_t& days) {
       require_auth(employer);
       check(is_account(worker), "Worker's account doesn't exist");
+      check(worker != get_self(), "Can't set this account as worker");
       check(days >= 1 && days <= 90, "Wage must be minimum for 1 day and maximum for 90 days");
       auto wage = table_wage.find(id);
       check(wage != table_wage.end(), "This wage id doesn't exist");

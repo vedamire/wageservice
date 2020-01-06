@@ -404,6 +404,20 @@ class TestStringMethods(unittest.TestCase):
                 {
                     "employer": charlie,
                     "id": 1,
+                    "worker": wageservice2,
+                    "days": 4
+                },
+                permission=(charlie, Permission.ACTIVE));
+            self.assertEqual("place contract worker", "");
+        except Error as err:
+            self.assertTrue("Can't set this account as worker" in err.message)
+            print("place contract passed");
+        try:
+            wageservice2.push_action(
+                "placewage",
+                {
+                    "employer": charlie,
+                    "id": 1,
                     "worker": bob,
                     "days": 0
                 },
