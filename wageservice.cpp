@@ -100,6 +100,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       require_auth(employer);
       check(is_account(worker), "Worker's account doesn't exist");
       check(worker != get_self(), "Can't set this account as worker");
+      check(worker != employer, "Can't set the same account for a worker and an employer");
       check(days >= 1 && days <= 90, "Wage must be minimum for 1 day and maximum for 90 days");
       auto wage = table_wage.find(id);
       check(wage != table_wage.end(), "This wage id doesn't exist");
@@ -133,7 +134,7 @@ class [[eosio::contract("wageservice")]] wageservice : public eosio::contract {
       check(wage != table_wage.end(), "No wage contract found with this id");
       check(wage->employer == employer, "This is not your wage");
       check(wage->is_accepted == true, "This wage contract isn't accepted");
-
+      check(wage->worked_days != wage->term_days, "Worker has already worked all his days");
       table_wage.modify(wage, get_self(), [&](auto& row) {
         row.worked_days = row.worked_days + 1;
       });

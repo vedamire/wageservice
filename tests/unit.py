@@ -13,16 +13,20 @@ create_account("token_host", master, account_name="eosio.token")
 create_account("wageservice", master, account_name="wageservice")
 create_account("wageservice1", master, account_name="wageservice1")
 create_account("wageservice2", master, account_name="wageservice2")
+create_account("wageservice3", master, account_name="wageservice3")
 
 
 token = Contract(token_host, "/home/ally/contracts/eosio.contracts/contracts/eosio.token")
 wage = Contract(wageservice, "/home/ally/contracts/wageservice")
 wage1 = Contract(wageservice1, "/home/ally/contracts/wageservice")
 wage2 = Contract(wageservice2, "/home/ally/contracts/wageservice")
+wage3 = Contract(wageservice3, "/home/ally/contracts/wageservice")
 
 wageservice.set_account_permission(Permission.ACTIVE, add_code=True)
 wageservice1.set_account_permission(Permission.ACTIVE, add_code=True)
 wageservice2.set_account_permission(Permission.ACTIVE, add_code=True)
+wageservice3.set_account_permission(Permission.ACTIVE, add_code=True)
+
 token_host.set_account_permission(Permission.ACTIVE, add_code=True)
 create_account("charlie", master)
 create_account("bob", master)
@@ -31,6 +35,7 @@ token.deploy()
 wage.deploy()
 wage1.deploy()
 wage2.deploy()
+wage3.deploy()
 token_host.push_action(
     "create",
         {
@@ -458,9 +463,23 @@ class TestStringMethods(unittest.TestCase):
             wageservice2.push_action(
                 "placewage",
                 {
+                    "employer": charlie,
+                    "id": 1,
+                    "worker": charlie,
+                    "days": 4
+                },
+                permission=(charlie, Permission.ACTIVE));
+            self.assertEqual("place same worker and employer", "");
+        except Error as err:
+            self.assertTrue("Can't set the same account for a worker and an employer" in err.message)
+            print("place same passed");
+        try:
+            wageservice2.push_action(
+                "placewage",
+                {
                     "employer": bob,
                     "id": 1,
-                    "worker": bob,
+                    "worker": charlie,
                     "days": 4
                 },
                 permission=(bob, Permission.ACTIVE));
@@ -568,6 +587,28 @@ class TestStringMethods(unittest.TestCase):
         except Error as err:
             self.assertTrue("This is not your wage" in err.message)
             print("addworkday owner passed");
+        for i in range(4):
+            time.sleep(0.4);
+            wageservice2.push_action(
+                "addworkday",
+                {
+                    "employer": charlie,
+                    "id": 2
+                },
+                permission=(charlie, Permission.ACTIVE));
+        time.sleep(0.4);
+        try:
+            wageservice2.push_action(
+                "addworkday",
+                {
+                    "employer": charlie,
+                    "id": 2
+                },
+                permission=(charlie, Permission.ACTIVE));
+            self.assertEqual("addworkday already worked overflow", "");
+        except Error as err:
+            self.assertTrue("Worker has already worked all his days" in err.message)
+            print("addworkday worked passed");
         try:
             wageservice2.push_action(
                 "addworkday",
@@ -707,9 +748,59 @@ class TestStringMethods(unittest.TestCase):
         except Error as err:
             self.assertTrue("The wage contract is already accepted" in err.message)
             print("acceptwage accepted passed");
+
     def test_int_errors(self):
+        token_host.push_action(
+            "transfer",
+            {
+                "from": charlie, "to": wageservice3,
+                "quantity": "7.0000 EOS", "memo":"placewage"
+            },
+            charlie);
+        wageservice3.push_action(
+            "placewage",
+            {
+                "employer": charlie,
+                "id": 0,
+                "worker": bob,
+                "days": 4
+            },
+            permission=(charlie, Permission.ACTIVE));
+        token_host.push_action(
+            "transfer",
+            {
+                "from": charlie, "to": wageservice3,
+                "quantity": "5.0000 EOS", "memo":"placewage"
+            },
+            charlie);
+        token_host.push_action(
+            "transfer",
+            {
+                "from": charlie, "to": wageservice3,
+                "quantity": "8.0000 EOS", "memo":"placewage"
+            },
+            charlie);
+        wageservice3.push_action(
+            "placewage",
+            {
+                "employer": charlie,
+                "id": 2,
+                "worker": bob,
+                "days": 4
+            },
+            permission=(charlie, Permission.ACTIVE));
+        wageservice3.push_action(
+            "acceptwage",
+            {
+                "worker": bob,
+                "id": 2,
+                "isaccepted": True
+            },
+            permission=(bob, Permission.ACTIVE))
+
+
         try:
-            wageservice2.push_action(
+            wageservice3.push_action(
                 "defertxn",
                 {
                     "delay": 100,
@@ -718,10 +809,10 @@ class TestStringMethods(unittest.TestCase):
                 permission=(bob, Permission.ACTIVE));
             self.assertEqual("defertxn auth", "");
         except Error as err:
-            self.assertTrue("missing authority of wageservice2" in err.message)
             print("defertxn auth passed");
+            self.assertTrue("missing authority of wageservice3" in err.message)
         try:
-            wageservice2.push_action(
+            wageservice3.push_action(
                 "autocashout",
                 {
                     "id": 2
@@ -729,38 +820,38 @@ class TestStringMethods(unittest.TestCase):
                 permission=(bob, Permission.ACTIVE));
             self.assertEqual("autocashout auth", "");
         except Error as err:
-            self.assertTrue("missing authority of wageservice2" in err.message)
+            self.assertTrue("missing authority of wageservice3" in err.message)
             print("autocashout auth passed");
         try:
-            wageservice2.push_action(
+            wageservice3.push_action(
                 "autocashout",
                 {
                     "id": 82
                 },
-                permission=(wageservice2, Permission.ACTIVE));
+                permission=(wageservice3, Permission.ACTIVE));
             self.assertEqual("autocashout wrong id", "");
         except Error as err:
             self.assertTrue("There's no wage contract with such an id" in err.message)
             print("autocashout id passed");
 
         try:
-            wageservice2.push_action(
+            wageservice3.push_action(
                 "autocashout",
                 {
                     "id": 0
                 },
-                permission=(wageservice2, Permission.ACTIVE));
+                permission=(wageservice3, Permission.ACTIVE));
             self.assertEqual("autocashout not accepted", "");
         except Error as err:
             self.assertTrue("The wage contract isn't accepted" in err.message)
             print("autocashout accepted passed");
         try:
-            wageservice2.push_action(
+            wageservice3.push_action(
                 "autocashout",
                 {
                     "id": 2
                 },
-                permission=(wageservice2, Permission.ACTIVE));
+                permission=(wageservice3, Permission.ACTIVE));
             self.assertEqual("autocashout not ended", "");
         except Error as err:
             self.assertTrue("The contract isn't ended" in err.message)
